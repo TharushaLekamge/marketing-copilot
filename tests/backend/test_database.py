@@ -16,23 +16,25 @@ def test_database_url_from_env():
     with patch.dict(
         os.environ, {"DATABASE_URL": "postgresql://test:test@localhost:5432/test_db"}
     ):
-        # Reload module to pick up new env var
+        # Reload modules to pick up new env var
         import importlib
+        import backend.config
         import backend.database
 
+        importlib.reload(backend.config)
         importlib.reload(backend.database)
 
-        assert "test_db" in backend.database.DATABASE_URL
+        assert "test_db" in backend.config.settings.database_url
 
 
 def test_database_url_default():
-    """Test that DATABASE_URL has a default value."""
-    # DATABASE_URL should have a default value
-    from backend.database import DATABASE_URL
+    """Test that DATABASE_URL has a value from settings."""
+    # DATABASE_URL should have a value from settings
+    from backend.config import settings
 
-    assert DATABASE_URL is not None
-    assert isinstance(DATABASE_URL, str)
-    assert len(DATABASE_URL) > 0
+    assert settings.database_url is not None
+    assert isinstance(settings.database_url, str)
+    assert len(settings.database_url) > 0
 
 
 def test_engine_creation():
