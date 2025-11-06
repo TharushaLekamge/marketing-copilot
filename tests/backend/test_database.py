@@ -3,12 +3,10 @@
 import os
 from unittest.mock import patch
 
-import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
-from backend.database import Base, SessionLocal, engine, get_db
-from tests.backend.conftest import test_db_engine, test_db_session
+from backend.database import Base, SessionLocal, engine
 
 
 def test_database_url_from_env():

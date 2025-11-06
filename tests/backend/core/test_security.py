@@ -23,7 +23,6 @@ def test_hash_password():
     assert hashed.startswith("$2b$")  # bcrypt hash format
 
 
-
 def test_verify_password_success():
     """Test that password verification succeeds with correct password."""
     password = "test_password_123"
