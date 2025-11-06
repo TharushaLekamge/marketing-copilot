@@ -2,8 +2,12 @@ from fastapi import FastAPI
 
 import uvicorn
 
+from backend.routers import auth
 
 app = FastAPI()
+
+# Include routers
+app.include_router(auth.router)
 
 
 @app.get("/health")
