@@ -32,9 +32,7 @@ class Settings(BaseSettings):
         alias="SECRET_KEY",
     )
     algorithm: str = Field(default="HS256", description="JWT algorithm")
-    access_token_expire_minutes: int = Field(
-        default=30, description="Access token expiration in minutes"
-    )
+    access_token_expire_minutes: int = Field(default=30, description="Access token expiration in minutes")
 
     # Database
     database_url: str = Field(

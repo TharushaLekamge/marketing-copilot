@@ -1,5 +1,8 @@
 # Ruff configuration file
 
+# Line length for both formatter and linter
+line-length = 120
+
 # Formatter settings
 [format]
 # Automatically removes trailing whitespace and whitespace on blank lines
@@ -14,6 +17,7 @@ select = [
     "W293",  # blank line contains whitespace
     "W292",  # no newline at end of file
     "F",     # pyflakes (includes F401: unused imports and other checks)
+    "E501",  # line too long
 ]
 
 # Exclude patterns

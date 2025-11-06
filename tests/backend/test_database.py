@@ -11,9 +11,7 @@ from backend.database import Base, SessionLocal, engine
 
 def test_database_url_from_env():
     """Test that DATABASE_URL is loaded from environment."""
-    with patch.dict(
-        os.environ, {"DATABASE_URL": "postgresql://test:test@localhost:5432/test_db"}
-    ):
+    with patch.dict(os.environ, {"DATABASE_URL": "postgresql://test:test@localhost:5432/test_db"}):
         # Reload modules to pick up new env var
         import importlib
         import backend.config
@@ -141,11 +139,7 @@ def test_database_connection(test_db_session: Session):
 def test_database_transaction_rollback(test_db_session: Session):
     """Test that database transactions can be rolled back."""
     # Create a simple table for testing
-    test_db_session.execute(
-        text(
-            "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)"
-        )
-    )
+    test_db_session.execute(text("CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)"))
     test_db_session.commit()
 
     # Insert data
@@ -164,11 +158,7 @@ def test_database_transaction_rollback(test_db_session: Session):
 def test_database_transaction_commit(test_db_session: Session):
     """Test that database transactions can be committed."""
     # Create a simple table for testing
-    test_db_session.execute(
-        text(
-            "CREATE TABLE IF NOT EXISTS test_table2 (id INTEGER PRIMARY KEY, name TEXT)"
-        )
-    )
+    test_db_session.execute(text("CREATE TABLE IF NOT EXISTS test_table2 (id INTEGER PRIMARY KEY, name TEXT)"))
     test_db_session.commit()
 
     # Insert data
