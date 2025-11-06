@@ -8,6 +8,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: marketing_copilot
+          POSTGRES_PASSWORD: marketing_copilot_test
+          POSTGRES_DB: marketing_copilot_test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,6 +38,8 @@ jobs:
           pip install -r backend/requirements-test.txt
       
       - name: Run tests
+        env:
+          DATABASE_URL: postgresql://marketing_copilot:marketing_copilot_test@localhost:5432/marketing_copilot_test_db
         run: |
           python -m pytest tests/backend/ -v
 

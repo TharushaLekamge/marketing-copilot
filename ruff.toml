@@ -1,0 +1,29 @@
+# Ruff configuration file
+
+# Formatter settings
+[format]
+# Automatically removes trailing whitespace and whitespace on blank lines
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Linter rules
+[lint]
+# Enable whitespace-related rules
+select = [
+    "W291",  # trailing whitespace
+    "W293",  # blank line contains whitespace
+    "W292",  # no newline at end of file
+]
+
+# Exclude patterns
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".pytest_cache",
+    "node_modules",
+    "dist",
+    "build",
+]
+
