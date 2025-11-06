@@ -3,13 +3,7 @@
 import os
 from datetime import datetime, timezone
 
-# Set required environment variables before importing backend modules
-os.environ.setdefault(
-    "DATABASE_URL", "postgresql://marketing_copilot:marketing_copilot_test@localhost:5432/marketing_copilot_test_db"
-)
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-do-not-use-in-production")
-
-from backend.core.security import verify_password
+from backend.core.security import decode_access_token, hash_password, verify_password
 from backend.models.user import User
 from fastapi.testclient import TestClient
 
@@ -170,3 +164,220 @@ def test_signup_response_structure(test_client: TestClient):
 
     # Verify created_at is valid ISO format
     datetime.fromisoformat(data["created_at"].replace("Z", "+00:00"))
+
+
+def test_login_success(test_client: TestClient, create_user):
+    """Test successful user login."""
+    # Create a user directly in the database
+    user = create_user(
+        email="login@example.com",
+        password="testpassword123",
+        name="Login User",
+    )
+
+    # Login with correct credentials
+    login_data = {
+        "email": "login@example.com",
+        "password": "testpassword123",
+    }
+
+    response = test_client.post("/api/auth/login", json=login_data)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+
+    data = response.json()
+    assert "access_token" in data
+    assert "token_type" in data
+    assert "user" in data
+    assert data["token_type"] == "bearer"
+    assert isinstance(data["access_token"], str)
+    assert len(data["access_token"]) > 0
+
+    # Verify user information
+    user_data = data["user"]
+    assert user_data["email"] == "login@example.com"
+    assert user_data["name"] == "Login User"
+    assert user_data["role"] == "user"
+    assert user_data["id"] == str(user.id)
+    assert "created_at" in user_data
+
+    # Verify token is valid JWT
+    token_payload = decode_access_token(data["access_token"])
+    assert token_payload is not None
+    assert "sub" in token_payload
+    assert token_payload["sub"] == str(user.id)
+    assert "exp" in token_payload
+
+
+def test_login_invalid_email(test_client: TestClient):
+    """Test login with non-existent email returns 401."""
+    login_data = {
+        "email": "nonexistent@example.com",
+        "password": "testpassword123",
+    }
+
+    response = test_client.post("/api/auth/login", json=login_data)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+
+
+def test_login_invalid_password(test_client: TestClient, create_user):
+    """Test login with wrong password returns 401."""
+    # Create a user directly in the database
+    create_user(
+        email="login@example.com",
+        password="correctpassword123",
+        name="Wrong Pass User",
+    )
+
+    # Login with wrong password
+    login_data = {
+        "email": "login@example.com",
+        "password": "wrongpassword123",
+    }
+
+    response = test_client.post("/api/auth/login", json=login_data)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+
+
+def test_login_invalid_email_format(test_client: TestClient):
+    """Test login with invalid email format returns 422."""
+    login_data = {
+        "email": "invalid-email",
+        "password": "testpassword123",
+    }
+
+    response = test_client.post("/api/auth/login", json=login_data)
+
+    assert response.status_code == 422
+    error_detail = response.json()["detail"]
+    assert any("email" in str(err).lower() for err in error_detail)
+
+
+def test_login_missing_fields(test_client: TestClient):
+    """Test login with missing required fields returns 422."""
+    # Missing email
+    response1 = test_client.post("/api/auth/login", json={"password": "testpassword123"})
+    assert response1.status_code == 422
+
+    # Missing password
+    response2 = test_client.post("/api/auth/login", json={"email": "test@example.com"})
+    assert response2.status_code == 422
+
+
+def test_login_token_contains_user_id(test_client: TestClient, create_user):
+    """Test that login token contains correct user ID."""
+    # Create a user directly in the database
+    user = create_user(
+        email="tokenuser@example.com",
+        password="testpassword123",
+        name="Token User",
+    )
+
+    # Login
+    login_data = {
+        "email": "tokenuser@example.com",
+        "password": "testpassword123",
+    }
+    login_response = test_client.post("/api/auth/login", json=login_data)
+
+    assert login_response.status_code == 200
+    data = login_response.json()
+
+    # Decode token and verify user ID
+    token_payload = decode_access_token(data["access_token"])
+    assert token_payload is not None
+    assert token_payload["sub"] == str(user.id)
+
+
+def test_login_response_structure(test_client: TestClient, create_user):
+    """Test that login response has correct structure."""
+    # Create a user directly in the database
+    create_user(
+        email="structure@example.com",
+        password="testpassword123",
+        name="Structure User",
+    )
+
+    # Login
+    login_data = {
+        "email": "structure@example.com",
+        "password": "testpassword123",
+    }
+    response = test_client.post("/api/auth/login", json=login_data)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify top-level fields
+    assert "access_token" in data
+    assert "token_type" in data
+    assert "user" in data
+
+    # Verify token fields
+    assert isinstance(data["access_token"], str)
+    assert data["token_type"] == "bearer"
+
+    # Verify user object structure
+    user = data["user"]
+    required_fields = ["id", "email", "name", "role", "created_at"]
+    for field in required_fields:
+        assert field in user, f"Missing required field: {field}"
+
+    # Verify field types
+    assert isinstance(user["id"], str)
+    assert isinstance(user["email"], str)
+    assert isinstance(user["name"], str)
+    assert isinstance(user["role"], str)
+    assert isinstance(user["created_at"], str)
+
+
+def test_login_empty_password(test_client: TestClient, create_user):
+    """Test login with empty password returns 401."""
+    # Create a user directly in the database
+    create_user(
+        email="emptypass@example.com",
+        password="testpassword123",
+        name="Empty Pass User",
+    )
+
+    # Login with empty password
+    login_data = {
+        "email": "emptypass@example.com",
+        "password": "",
+    }
+
+    response = test_client.post("/api/auth/login", json=login_data)
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+
+
+def test_login_token_expiration(test_client: TestClient, create_user):
+    """Test that login token has expiration claim."""
+    # Create a user directly in the database
+    create_user(
+        email="expire@example.com",
+        password="testpassword123",
+        name="Expire User",
+    )
+
+    # Login
+    login_data = {
+        "email": "expire@example.com",
+        "password": "testpassword123",
+    }
+    response = test_client.post("/api/auth/login", json=login_data)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Decode token and verify expiration
+    token_payload = decode_access_token(data["access_token"])
+    assert token_payload is not None
+    assert "exp" in token_payload
+    assert isinstance(token_payload["exp"], (int, float))
