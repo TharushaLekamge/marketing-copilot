@@ -35,3 +35,25 @@ class UserResponse(BaseModel):
     name: str
     role: str
     created_at: str
+
+
+class UserLogin(BaseModel):
+    """User login request schema."""
+
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    """Token response schema."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
+class LoginResponse(BaseModel):
+    """Login response schema with token and user info."""
+
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
