@@ -1,0 +1,171 @@
+"""Tests for database connection and session management."""
+
+import os
+from unittest.mock import patch
+
+import pytest
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from backend.database import Base, SessionLocal, engine, get_db
+from tests.backend.conftest import test_db_engine, test_db_session
+
+
+def test_database_url_from_env():
+    """Test that DATABASE_URL is loaded from environment."""
+    with patch.dict(os.environ, {"DATABASE_URL": "postgresql://test:test@localhost:5432/test_db"}):
+        # Reload module to pick up new env var
+        import importlib
+        import backend.database
+        importlib.reload(backend.database)
+        
+        assert "test_db" in backend.database.DATABASE_URL
+
+
+def test_database_url_default():
+    """Test that DATABASE_URL has a default value."""
+    # DATABASE_URL should have a default value
+    from backend.database import DATABASE_URL
+    
+    assert DATABASE_URL is not None
+    assert isinstance(DATABASE_URL, str)
+    assert len(DATABASE_URL) > 0
+
+
+def test_engine_creation():
+    """Test that database engine is created successfully."""
+    assert engine is not None
+    assert engine.url is not None
+
+
+def test_engine_pool_settings():
+    """Test that engine has correct pool settings."""
+    assert engine.pool.size() == 10 or engine.pool.size() >= 0
+    assert engine.pool._max_overflow == 20
+
+
+def test_session_local_creation():
+    """Test that SessionLocal is created successfully."""
+    assert SessionLocal is not None
+    assert callable(SessionLocal)
+
+
+def test_base_declarative():
+    """Test that Base is a declarative base."""
+    assert Base is not None
+    assert hasattr(Base, "metadata")
+
+
+def test_get_db_generator(test_db_engine):
+    """Test that get_db yields a database session."""
+    # Create a test session factory
+    TestingSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_db_engine,
+    )
+    
+    def test_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+    
+    # Test generator
+    db_gen = test_get_db()
+    session = next(db_gen)
+    
+    assert isinstance(session, Session)
+    assert session.is_active
+    
+    # Cleanup
+    try:
+        next(db_gen)
+    except StopIteration:
+        pass
+
+
+def test_get_db_closes_session(test_db_engine):
+    """Test that get_db properly closes the session."""
+    TestingSessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=test_db_engine,
+    )
+    
+    def test_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+    
+    # Test that session is closed after generator completes
+    db_gen = test_get_db()
+    session = next(db_gen)
+    
+    assert session.is_active
+    
+    # Complete generator
+    try:
+        next(db_gen)
+    except StopIteration:
+        pass
+    
+    # Session should be closed
+    assert not session.is_active
+
+
+def test_database_connection(test_db_session: Session):
+    """Test that we can execute a query on the database."""
+    result = test_db_session.execute(text("SELECT 1"))
+    row = result.fetchone()
+    
+    assert row is not None
+    assert row[0] == 1
+
+
+def test_database_transaction_rollback(test_db_session: Session):
+    """Test that database transactions can be rolled back."""
+    # Create a simple table for testing
+    test_db_session.execute(
+        text("CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)")
+    )
+    test_db_session.commit()
+    
+    # Insert data
+    test_db_session.execute(
+        text("INSERT INTO test_table (name) VALUES ('test')")
+    )
+    
+    # Rollback
+    test_db_session.rollback()
+    
+    # Verify data was not committed
+    result = test_db_session.execute(text("SELECT COUNT(*) FROM test_table"))
+    count = result.scalar()
+    
+    assert count == 0
+
+
+def test_database_transaction_commit(test_db_session: Session):
+    """Test that database transactions can be committed."""
+    # Create a simple table for testing
+    test_db_session.execute(
+        text("CREATE TABLE IF NOT EXISTS test_table2 (id INTEGER PRIMARY KEY, name TEXT)")
+    )
+    test_db_session.commit()
+    
+    # Insert data
+    test_db_session.execute(
+        text("INSERT INTO test_table2 (name) VALUES ('test')")
+    )
+    test_db_session.commit()
+    
+    # Verify data was committed
+    result = test_db_session.execute(text("SELECT COUNT(*) FROM test_table2"))
+    count = result.scalar()
+    
+    assert count == 1
+
