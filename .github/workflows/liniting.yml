@@ -24,11 +24,11 @@ jobs:
       
       - name: Run ruff linter
         run: |
-          ruff check backend/
+          ruff check backend/ tests/backend/
       
       - name: Run ruff formatter check
         run: |
-          ruff format --check backend/
+          ruff format --check backend/ tests/backend/
 
   lint-frontend:
     runs-on: ubuntu-latest

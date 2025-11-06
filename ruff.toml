@@ -8,11 +8,12 @@ line-ending = "auto"
 
 # Linter rules
 [lint]
-# Enable whitespace-related rules
+# Enable whitespace-related rules and unused imports
 select = [
     "W291",  # trailing whitespace
     "W293",  # blank line contains whitespace
     "W292",  # no newline at end of file
+    "F",     # pyflakes (includes F401: unused imports and other checks)
 ]
 
 # Exclude patterns
