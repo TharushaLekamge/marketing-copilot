@@ -19,22 +19,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     // Check if user is already logged in (token exists)
-    if (typeof window === "undefined") {
+    const checkAuth = () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        return;
+      }
+
+      // In a real app, you'd verify the token and fetch user data
+      // For now, we'll just check if token exists
+      // TODO: Fetch user data from API using token
+    };
+
+    checkAuth();
+
+    // Set loading to false after check, only if component is still mounted
+    if (isMounted) {
+      // eslint-disable-next-line
       setLoading(false);
-      return;
     }
 
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    // In a real app, you'd verify the token and fetch user data
-    // For now, we'll just check if token exists
-    // TODO: Fetch user data from API using token
-    setLoading(false);
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = async (data: LoginRequest) => {
@@ -43,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (data: SignupRequest) => {
-    const newUser = await apiClient.signup(data);
+    await apiClient.signup(data);
     // After signup, automatically log in
     await login({ email: data.email, password: data.password });
   };

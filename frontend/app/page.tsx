@@ -53,7 +53,7 @@ export default function Home() {
             Welcome, {user.name}!
           </h2>
           <p className="mt-4 text-lg text-gray-600">
-            You're successfully logged in to Marketing Copilot.
+            You&apos;re successfully logged in to Marketing Copilot.
           </p>
           <div className="mt-8">
             <p className="text-sm text-gray-500">
