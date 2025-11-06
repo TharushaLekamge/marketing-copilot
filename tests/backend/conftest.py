@@ -96,6 +96,7 @@ def create_user(test_db_session: Session) -> Callable:
             assert user.email == "test@example.com"
         ```
     """
+
     def _create_user(
         email: str,
         password: str,
