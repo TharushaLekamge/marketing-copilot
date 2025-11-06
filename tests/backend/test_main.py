@@ -17,4 +17,3 @@ def test_health_endpoint():
     assert data == {"status": "healthy", "service": "marketing_copilot_backend"}
     assert data["status"] == "healthy"
     assert data["service"] == "marketing_copilot_backend"
-

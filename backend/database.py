@@ -41,14 +41,14 @@ Base = declarative_base()
 
 def get_db() -> Generator[Session, None, None]:
     """Dependency for getting database session.
-    
+
     Yields:
         Session: SQLAlchemy database session
-        
+
     Example:
         ```python
         from backend.database import get_db
-        
+
         @app.get("/items")
         def get_items(db: Session = Depends(get_db)):
             return db.query(Item).all()
@@ -59,4 +59,3 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
-
