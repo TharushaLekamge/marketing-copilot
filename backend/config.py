@@ -25,6 +25,17 @@ class Settings(BaseSettings):
     app_name: str = Field(default="Marketing Copilot", description="Application name")
     app_env: str = Field(default="development", description="Application environment")
 
+    # Security
+    secret_key: str = Field(
+        ...,
+        description="Secret key for JWT tokens",
+        alias="SECRET_KEY",
+    )
+    algorithm: str = Field(default="HS256", description="JWT algorithm")
+    access_token_expire_minutes: int = Field(
+        default=30, description="Access token expiration in minutes"
+    )
+
     # Database
     database_url: str = Field(
         ...,
