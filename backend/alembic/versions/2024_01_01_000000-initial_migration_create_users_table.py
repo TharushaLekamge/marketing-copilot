@@ -5,6 +5,7 @@ Revises:
 Create Date: 2024-01-01 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -41,4 +42,3 @@ def downgrade() -> None:
     """Drop users table."""
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
-
