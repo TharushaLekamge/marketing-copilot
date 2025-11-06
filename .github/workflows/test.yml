@@ -40,6 +40,7 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql://marketing_copilot:marketing_copilot_test@localhost:5432/marketing_copilot_test_db
+          SECRET_KEY: test-secret-key-for-ci-only-do-not-use-in-production
         run: |
           python -m pytest tests/backend/ -v
 

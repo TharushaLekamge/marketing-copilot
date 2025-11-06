@@ -1,14 +1,12 @@
 """Pytest fixtures for backend tests."""
 
-import os
 from typing import Generator
 
 import pytest
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from backend.config import settings
 from backend.database import Base
 
 
