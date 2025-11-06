@@ -7,10 +7,10 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from backend.core.security import hash_password
+from backend.core.security import create_access_token, hash_password, verify_password
 from backend.database import get_db
 from backend.models.user import User
-from backend.schemas.auth import UserResponse, UserSignup
+from backend.schemas.auth import LoginResponse, UserLogin, UserResponse, UserSignup
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -61,4 +61,52 @@ async def signup(
         name=new_user.name,
         role=new_user.role,
         created_at=new_user.created_at.isoformat(),
+    )
+
+
+@router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+async def login(
+    user_data: UserLogin,
+    db: Annotated[Session, Depends(get_db)],
+) -> LoginResponse:
+    """Authenticate user and return access token.
+
+    Args:
+        user_data: User login data (email, password)
+        db: Database session
+
+    Returns:
+        LoginResponse: Access token and user information
+
+    Raises:
+        HTTPException: If email or password is invalid
+    """
+    # Find user by email
+    user = db.query(User).filter(User.email == user_data.email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    # Verify password
+    if not verify_password(user_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    # Create access token
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            name=user.name,
+            role=user.role,
+            created_at=user.created_at.isoformat(),
+        ),
     )

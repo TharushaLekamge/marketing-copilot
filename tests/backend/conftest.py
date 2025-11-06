@@ -1,7 +1,9 @@
 """Pytest fixtures for backend tests."""
 
 import os
-from typing import Generator
+from datetime import datetime, timezone
+from typing import Callable, Generator
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,8 +11,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from backend.core.security import hash_password
 from backend.database import Base, get_db
 from backend.main import app
+from backend.models.user import User
 
 
 @pytest.fixture(scope="function")
@@ -69,3 +73,59 @@ def test_client(test_db_session: Session) -> Generator[TestClient, None, None]:
         yield client
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def create_user(test_db_session: Session) -> Callable:
+    """Factory function to create users directly in the database.
+
+    Args:
+        test_db_session: Database session fixture
+
+    Returns:
+        Function that creates a user with given parameters
+
+    Example:
+        ```python
+        def test_example(create_user):
+            user = create_user(
+                email="test@example.com",
+                password="testpassword123",
+                name="Test User"
+            )
+            assert user.email == "test@example.com"
+        ```
+    """
+
+    def _create_user(
+        email: str,
+        password: str,
+        name: str,
+        role: str = "user",
+    ) -> User:
+        """Create a user in the database.
+
+        Args:
+            email: User email address
+            password: Plain text password (will be hashed)
+            name: User name
+            role: User role (default: "user")
+
+        Returns:
+            Created User object
+        """
+        hashed_password = hash_password(password)
+        user = User(
+            id=uuid4(),
+            email=email,
+            name=name,
+            password_hash=hashed_password,
+            role=role,
+            created_at=datetime.now(timezone.utc),
+        )
+        test_db_session.add(user)
+        test_db_session.commit()
+        test_db_session.refresh(user)
+        return user
+
+    return _create_user
