@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 
 from backend.config import settings
 from backend.database import Base
-from backend.models import User  # noqa: F401
+from backend.models import Project, User  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
