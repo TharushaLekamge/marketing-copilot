@@ -1,50 +1,45 @@
-# Development Dockerfile for Backend with auto-reload
+# syntax=docker/dockerfile:1.6
+# Development Dockerfile with auto-reload and fast pip caching
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Set environment variables
+# Helpful envs (don't disable pip cache in dev)
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# System dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements files for better Docker layer caching
-# These layers will be cached if requirements files don't change
+# Copy only dependency files first for better layer caching
 COPY backend/requirements.txt /app/requirements.txt
 COPY backend/requirements-ml.txt /app/requirements-ml.txt
 
-# Create wheelhouse directory for pip package caching
-RUN mkdir -p /app/wheelhouse
+# Upgrade pip and prepare cache (cache persists across builds)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip wheel
 
-# Build wheels for ML packages (heavy, rarely change)
-# This layer will be cached if requirements-ml.txt doesn't change
-RUN pip install --upgrade pip wheel && \
-    pip wheel --wheel-dir=/app/wheelhouse -r requirements-ml.txt
+# Install heavy ML deps (rarely change) with cache
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-ml.txt
 
-# Install ML packages from wheelhouse (fast, uses cached wheels)
-RUN pip install --no-index --find-links=/app/wheelhouse -r requirements-ml.txt
+# Install regular deps with cache
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
-# Install regular dependencies (lighter, change more often)
-# This layer will be cached if requirements.txt hasn't changed
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code (will be overridden by volume mount in dev)
-# This layer will be rebuilt when code changes
+# Copy application code (typically overridden by a volume in dev)
 COPY backend/ /app/backend/
-COPY backend/alembic.ini /app/backend/alembic.ini
-COPY backend/alembic/ /app/backend/alembic/
 
-# Expose port
+# Optional: run as non-root in dev
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
-# Run the application with auto-reload (overridden by docker-compose command)
+# Uvicorn with auto-reload
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
