@@ -4,7 +4,6 @@ from typing import List
 
 from backend.core.chunking import TextChunk, chunk_text
 from backend.core.document_processor import (
-    DocumentProcessingError,
     extract_text_from_file,
     normalize_text,
 )

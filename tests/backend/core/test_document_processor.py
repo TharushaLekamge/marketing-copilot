@@ -1,7 +1,5 @@
 """Tests for document processor."""
 
-import io
-
 import pytest
 
 from backend.core.document_processor import (
