@@ -1,4 +1,5 @@
 """Unit tests for embedding generation module."""
+
 import numpy as np
 
 from backend.core.embeddings import (
@@ -214,4 +215,3 @@ class TestConvenienceFunctions:
         generator3 = get_embedding_generator(model_name="all-MiniLM-L6-v2")
         # Since we're using the same model name, it should be the same instance
         assert generator3 is generator1
-

@@ -71,9 +71,7 @@ class EmbeddingGenerator:
             return [[0.0] * dimension] * len(texts)
 
         # Generate embeddings for non-empty texts
-        embeddings = self.model.encode(
-            non_empty_texts, normalize_embeddings=True, show_progress_bar=False
-        )
+        embeddings = self.model.encode(non_empty_texts, normalize_embeddings=True, show_progress_bar=False)
 
         # Create result list with zero vectors for empty texts
         result: List[List[float]] = []
@@ -111,9 +109,7 @@ def get_embedding_generator(model_name: str | None = None) -> EmbeddingGenerator
         EmbeddingGenerator: The embedding generator instance
     """
     global _default_generator
-    if _default_generator is None or (
-        model_name is not None and _default_generator.model_name != model_name
-    ):
+    if _default_generator is None or (model_name is not None and _default_generator.model_name != model_name):
         _default_generator = EmbeddingGenerator(model_name or DEFAULT_MODEL_NAME)
     return _default_generator
 
@@ -132,9 +128,7 @@ def generate_embedding(text: str, model_name: str | None = None) -> List[float]:
     return generator.generate_embedding(text)
 
 
-def generate_embeddings_batch(
-    texts: List[str], model_name: str | None = None
-) -> List[List[float]]:
+def generate_embeddings_batch(texts: List[str], model_name: str | None = None) -> List[List[float]]:
     """Generate embeddings for multiple texts (convenience function).
 
     Args:
@@ -146,4 +140,3 @@ def generate_embeddings_batch(
     """
     generator = get_embedding_generator(model_name)
     return generator.generate_embeddings_batch(texts)
-
