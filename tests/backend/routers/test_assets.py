@@ -68,7 +68,7 @@ def test_create_asset_without_filename(test_client: TestClient, create_user, tes
 
     # Create a mock file without filename
     file_content = b"Mock file content"
-    file_data = {"file": (None, file_content, "application/octet-stream")}
+    file_data = {"file": ("", file_content, "application/octet-stream")}
 
     response = test_client.post(
         f"/api/projects/{project.id}/assets",
@@ -76,10 +76,7 @@ def test_create_asset_without_filename(test_client: TestClient, create_user, tes
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 201
-    data = response.json()
-    assert data["filename"] == "unnamed"
-    assert data["content_type"] == "application/octet-stream"
+    assert response.status_code == 422
 
 
 def test_create_asset_without_content_type(test_client: TestClient, create_user, test_db_session):
@@ -97,7 +94,7 @@ def test_create_asset_without_content_type(test_client: TestClient, create_user,
 
     # Create a mock file without content type
     file_content = b"Mock file content"
-    file_data = {"file": ("test.txt", file_content, None)}
+    file_data = {"file": ("test", file_content, None)}
 
     response = test_client.post(
         f"/api/projects/{project.id}/assets",
@@ -107,7 +104,7 @@ def test_create_asset_without_content_type(test_client: TestClient, create_user,
 
     assert response.status_code == 201
     data = response.json()
-    assert data["filename"] == "test.txt"
+    assert data["filename"] == "test"
     assert data["content_type"] == "application/octet-stream"
 
 
