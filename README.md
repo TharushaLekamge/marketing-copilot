@@ -65,10 +65,10 @@ All asset endpoints require authentication via Bearer token in the Authorization
   - Request: Multipart form data with `file` field
   - Response: `201 Created` with asset metadata (id, filename, content_type, ingested, metadata, timestamps)
   - Returns `404 Not Found` if project doesn't exist or user doesn't own it
-  - Returns `422 Unprocessable Entity` if filename is missing or empty
+  - Returns `422 Unprocessable Entity` if filename is missing or empty, file type not allowed, or file size exceeds 100MB
   - Defaults to `application/octet-stream` if content_type is not provided
   - Requires authentication
-  - Note: File content storage (S3, local storage, etc.) is not yet implemented - only metadata is stored
+  - Files are stored in local storage (configurable via `STORAGE_PATH` environment variable)
 
 - **GET** `/api/projects/{project_id}/assets` - List all assets for a project
   - Response: `200 OK` with list of assets
@@ -90,7 +90,12 @@ All asset endpoints require authentication via Bearer token in the Authorization
   - Response: `204 No Content` on success
   - Returns `404 Not Found` if asset or project doesn't exist or user doesn't own the project
   - Requires authentication
-  - Note: File deletion from storage (S3, local storage, etc.) is not yet implemented - only database record is deleted
+  - Deletes both the database record and the file from storage
+
+- **GET** `/api/projects/{project_id}/assets/{asset_id}/download` - Download an asset file
+  - Response: `200 OK` with file content as download
+  - Returns `404 Not Found` if asset, project, or file doesn't exist or user doesn't own the project
+  - Requires authentication
 
 ### Health Check
 
@@ -216,23 +221,31 @@ All asset endpoints require authentication via Bearer token in the Authorization
 
 ### Docker Setup (Optional)
 
-1. **Start all services**:
+1. **Create uploads directory** (required for file storage):
+   ```bash
+   # From project root
+   mkdir -p uploads
+   ```
+   
+   This directory will be mounted into the Docker container to persist uploaded files. The directory will be created automatically if it doesn't exist, but creating it beforehand ensures proper permissions.
+
+2. **Start all services**:
    ```bash
    docker-compose up -d
    ```
 
-2. **Access services**:
+3. **Access services**:
    - Frontend: http://localhost:3000
    - Backend: http://localhost:8000
    - PostgreSQL: localhost:5432
    - Redis: localhost:6379
 
-3. **View logs**:
+4. **View logs**:
    ```bash
    docker-compose logs -f
    ```
 
-4. **Stop services**:
+5. **Stop services**:
    ```bash
    docker-compose down
    ```
