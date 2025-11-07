@@ -178,17 +178,18 @@ async def update_asset(
             detail="Asset not found",
         )
 
-    # Update fields
+    # Update fields - handle the metadata -> asset_metadata mapping
     update_data = asset_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "metadata":
-            setattr(asset, "asset_metadata", value)
+            # Map schema field "metadata" to model field "asset_metadata"
+            asset.asset_metadata = value
         else:
             setattr(asset, key, value)
 
     asset.updated_at = datetime.now(timezone.utc)
 
-    db.add(asset)
+
     db.commit()
     db.refresh(asset)
 

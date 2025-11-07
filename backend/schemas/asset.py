@@ -34,14 +34,27 @@ class AssetCreate(BaseModel):
 class AssetUpdate(BaseModel):
     """Schema for updating an existing asset."""
 
-    filename: Optional[str] = Field(None, min_length=1, max_length=255, description="New filename for the asset")
-    metadata: Optional[dict] = Field(None, description="New metadata for the asset")
-    ingested: Optional[bool] = Field(None, description="Ingestion status of the asset")
+    filename: Optional[str] = Field(
+        None, min_length=1, max_length=255, description="New name for the asset file"
+    )
+    content_type: Optional[str] = Field(
+        None, min_length=1, max_length=100, description="New MIME type of the asset"
+    )
+    ingested: Optional[bool] = Field(None, description="Whether the asset has been ingested")
+    metadata: Optional[dict] = Field(None, description="New JSON metadata for the asset")
 
     @field_validator("filename", mode="before")
     @classmethod
     def normalize_filename(cls, v: Optional[str]) -> Optional[str]:
         """Normalize filename by stripping whitespace."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("content_type", mode="before")
+    @classmethod
+    def normalize_content_type(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize content type by stripping whitespace."""
         if isinstance(v, str):
             return v.strip()
         return v
