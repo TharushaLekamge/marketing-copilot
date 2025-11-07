@@ -7,7 +7,6 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install system dependencies
@@ -17,14 +16,28 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy requirements files for better Docker layer caching
+# These layers will be cached if requirements files don't change
 COPY backend/requirements.txt /app/requirements.txt
+COPY backend/requirements-ml.txt /app/requirements-ml.txt
 
-# Install Python dependencies
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+# Create wheelhouse directory for pip package caching
+RUN mkdir -p /app/wheelhouse
+
+# Build wheels for ML packages (heavy, rarely change)
+# This layer will be cached if requirements-ml.txt doesn't change
+RUN pip install --upgrade pip wheel && \
+    pip wheel --wheel-dir=/app/wheelhouse -r requirements-ml.txt
+
+# Install ML packages from wheelhouse (fast, uses cached wheels)
+RUN pip install --no-index --find-links=/app/wheelhouse -r requirements-ml.txt
+
+# Install regular dependencies (lighter, change more often)
+# This layer will be cached if requirements.txt hasn't changed
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code (will be overridden by volume mount in dev)
+# This layer will be rebuilt when code changes
 COPY backend/ /app/backend/
 COPY backend/alembic.ini /app/backend/alembic.ini
 COPY backend/alembic/ /app/backend/alembic/

@@ -62,11 +62,21 @@ services:
     restart: unless-stopped
     command: >
       sh -c "
-        echo 'Waiting for database...' &&
-        until pg_isready -h postgres -U marketing_copilot; do sleep 1; done &&
+        echo 'Waiting for database to be ready...' &&
+        until pg_isready -h postgres -U marketing_copilot; do 
+          echo 'Database not ready, waiting...' && 
+          sleep 2
+        done &&
+        echo 'Verifying database exists...' &&
+        until PGPASSWORD=marketing_copilot_dev psql -h postgres -U marketing_copilot -d marketing_copilot_db -c 'SELECT 1' > /dev/null 2>&1; do
+          echo 'Database not accessible, waiting...' &&
+          sleep 2
+        done &&
+        echo 'Database is ready!' &&
         echo 'Running migrations...' &&
         cd /app/backend &&
         alembic -c alembic.ini upgrade head &&
+        echo 'Migrations complete!' &&
         echo 'Starting server with auto-reload...' &&
         cd /app &&
         uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
