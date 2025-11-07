@@ -43,6 +43,7 @@ Thumbs.db
 # Project specific
 data/
 export/
+uploads/
 *.log
 *.sqlite
 *.db

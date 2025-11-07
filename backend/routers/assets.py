@@ -4,10 +4,12 @@ from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_current_user
+from backend.core.file_processing import FileValidationError, validate_file
+from backend.core.storage import FileNotFoundError, StorageError, get_storage
 from backend.database import get_db
 from backend.models.asset import Asset
 from backend.models.project import Project
@@ -46,11 +48,37 @@ async def create_asset(
             detail="Project not found",
         )
 
+    # Validate filename
+    if not file.filename or not file.filename.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Filename is required",
+        )
+
+    # Read file content
+    try:
+        file_content = await file.read()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read file: {str(e)}",
+        ) from e
+
+    # Validate file
+    try:
+        validate_file(file_content, file.filename)
+    except FileValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        ) from e
+
     # Create asset record
+    asset_id = uuid4()
     new_asset = Asset(
-        id=uuid4(),
+        id=asset_id,
         project_id=project_id,
-        filename=file.filename or "unnamed",
+        filename=file.filename.strip(),
         content_type=file.content_type or "application/octet-stream",
         ingested=False,
         asset_metadata=None,
@@ -62,8 +90,17 @@ async def create_asset(
     db.commit()
     db.refresh(new_asset)
 
-    # TODO: Store the actual file content (S3, local storage, etc.)
-    # For now, we only store the metadata
+    # Store file content
+    try:
+        storage = get_storage()
+        storage.save(project_id, asset_id, file.filename.strip(), file_content)
+    except StorageError as e:
+        # Rollback database transaction
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save file: {str(e)}",
+        ) from e
 
     return AssetResponse.model_validate(new_asset)
 
@@ -139,6 +176,68 @@ async def get_asset(
     return AssetResponse.model_validate(asset)
 
 
+@router.get("/{project_id}/assets/{asset_id}/download")
+async def download_asset(
+    project_id: UUID,
+    asset_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Download an asset file.
+
+    Args:
+        project_id: ID of the project
+        asset_id: ID of the asset
+        current_user: The authenticated user
+        db: Database session
+
+    Returns:
+        Response: File download response with file content
+
+    Raises:
+        HTTPException: If the asset or project is not found or not owned by the user
+    """
+    # Verify project exists and user owns it
+    project = db.query(Project).filter(Project.id == project_id, Project.owner_id == current_user.id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Get asset
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.project_id == project_id).first()
+    if not asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asset not found",
+        )
+
+    # Read file from storage
+    try:
+        storage = get_storage()
+        file_content = storage.read(project_id, asset_id, asset.filename)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found in storage",
+        )
+    except StorageError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read file: {str(e)}",
+        ) from e
+
+    # Return file with appropriate headers
+    return Response(
+        content=file_content,
+        media_type=asset.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{asset.filename}"',
+        },
+    )
+
+
 @router.patch("/{project_id}/assets/{asset_id}", response_model=AssetResponse)
 async def update_asset(
     project_id: UUID,
@@ -182,7 +281,6 @@ async def update_asset(
     update_data = asset_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "metadata":
-            # Map schema field "metadata" to model field "asset_metadata"
             asset.asset_metadata = value
         else:
             setattr(asset, key, value)
@@ -229,8 +327,18 @@ async def delete_asset(
             detail="Asset not found",
         )
 
-    # TODO: Delete the actual file from storage (S3, local storage, etc.)
-    # For now, we only delete the database record
+    # Delete file from storage
+    try:
+        storage = get_storage()
+        storage.delete(project_id, asset_id, asset.filename)
+    except FileNotFoundError:
+        # File doesn't exist in storage, continue with database deletion
+        pass
+    except StorageError as e:
+        # Log error but continue with database deletion
+        # In production, you might want to handle this differently
+        pass
 
+    # Delete database record
     db.delete(asset)
     db.commit()
