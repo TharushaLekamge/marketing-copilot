@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from backend.core.dependencies import get_current_user
 from backend.core.security import create_access_token, hash_password, verify_password
 from backend.database import get_db
 from backend.models.user import User
@@ -109,4 +110,28 @@ async def login(
             role=user.role,
             created_at=user.created_at.isoformat(),
         ),
+    )
+
+
+@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def get_me(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserResponse:
+    """Get current authenticated user information.
+
+    Args:
+        current_user: Current authenticated user from dependency
+
+    Returns:
+        UserResponse: Current user information
+
+    Raises:
+        HTTPException: If user is not authenticated
+    """
+    return UserResponse(
+        id=str(current_user.id),
+        email=current_user.email,
+        name=current_user.name,
+        role=current_user.role,
+        created_at=current_user.created_at.isoformat(),
     )

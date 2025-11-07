@@ -21,29 +21,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Check if user is already logged in (token exists)
-    const checkAuth = () => {
+    const checkAuth = async () => {
       if (typeof window === "undefined") {
+        if (isMounted) {
+          setLoading(false);
+        }
         return;
       }
 
       const token = localStorage.getItem("access_token");
       if (!token) {
+        if (isMounted) {
+          setLoading(false);
+        }
         return;
       }
 
-      // In a real app, you'd verify the token and fetch user data
-      // For now, we'll just check if token exists
-      // TODO: Fetch user data from API using token
+      try {
+        // Fetch user data from API using token
+        const user = await apiClient.getCurrentUser();
+        if (isMounted) {
+          setUser(user);
+        }
+      } catch (error) {
+        // Token is invalid or expired, clear it
+        console.error("Failed to fetch user:", error);
+        localStorage.removeItem("access_token");
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     };
 
     checkAuth();
-
-    // Set loading to false after check, only if component is still mounted
-    if (isMounted) {
-      // eslint-disable-next-line
-      setLoading(false);
-    }
 
     return () => {
       isMounted = false;
