@@ -136,37 +136,51 @@ def test_database_connection(test_db_session: Session):
     assert row[0] == 1
 
 
-def test_database_transaction_rollback(test_db_session: Session):
+def test_database_transaction_rollback(test_db_session: Session, test_db_engine):
     """Test that database transactions can be rolled back."""
-    # Create a simple table for testing
+    # Create a simple table for testing (DDL - will be committed)
     test_db_session.execute(text("CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)"))
     test_db_session.commit()
 
-    # Insert data
-    test_db_session.execute(text("INSERT INTO test_table (name) VALUES ('test')"))
+    # Insert data (DML - will be rolled back by fixture)
+    test_db_session.execute(text("INSERT INTO test_table (id, name) VALUES (1, 'test')"))
+    test_db_session.flush()  # Flush to ensure insert is in transaction
 
-    # Rollback
+    # Verify data exists before rollback
+    result = test_db_session.execute(text("SELECT COUNT(*) FROM test_table"))
+    count_before = result.scalar()
+    assert count_before == 1
+
+    # Rollback (this will be done by fixture, but we can test it explicitly)
     test_db_session.rollback()
 
-    # Verify data was not committed
+    # Verify data was rolled back
     result = test_db_session.execute(text("SELECT COUNT(*) FROM test_table"))
-    count = result.scalar()
+    count_after = result.scalar()
 
-    assert count == 0
+    assert count_after == 0
+
+    # Cleanup: drop the test table
+    test_db_session.execute(text("DROP TABLE IF EXISTS test_table"))
+    test_db_session.commit()
 
 
 def test_database_transaction_commit(test_db_session: Session):
     """Test that database transactions can be committed."""
-    # Create a simple table for testing
+    # Create a simple table for testing (DDL - will be committed)
     test_db_session.execute(text("CREATE TABLE IF NOT EXISTS test_table2 (id INTEGER PRIMARY KEY, name TEXT)"))
     test_db_session.commit()
 
-    # Insert data
-    test_db_session.execute(text("INSERT INTO test_table2 (name) VALUES ('test')"))
+    # Insert data and commit (DML - will be rolled back by fixture anyway)
+    test_db_session.execute(text("INSERT INTO test_table2 (id, name) VALUES (1, 'test')"))
     test_db_session.commit()
 
-    # Verify data was committed
+    # Verify data was committed (within the transaction)
     result = test_db_session.execute(text("SELECT COUNT(*) FROM test_table2"))
     count = result.scalar()
 
     assert count == 1
+
+    # Cleanup: drop the test table
+    test_db_session.execute(text("DROP TABLE IF EXISTS test_table2"))
+    test_db_session.commit()

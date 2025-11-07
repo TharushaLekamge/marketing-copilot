@@ -9,7 +9,17 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+
+# Set required environment variables before importing backend modules
+# Default test database URL - can be overridden via TEST_DATABASE_URL env var
+default_test_db_url = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql://marketing_copilot:marketing_copilot_dev@localhost:5432/marketing_copilot_db",
+)
+os.environ.setdefault("DATABASE_URL", default_test_db_url)
+os.environ.setdefault(
+    "SECRET_KEY", "test-secret-key-for-testing-only-do-not-use-in-production"
+)
 
 from backend.core.security import create_access_token, hash_password
 from backend.database import Base, get_db
@@ -19,12 +29,23 @@ from backend.models.user import User
 
 @pytest.fixture(scope="function")
 def test_db_engine():
-    """Create an in-memory SQLite database for testing."""
-    # Use in-memory SQLite for tests
+    """Create a PostgreSQL database engine for testing."""
+    # Get test database URL from environment
+    # Prefer TEST_DATABASE_URL, fallback to DATABASE_URL, then default
+    test_db_url = os.getenv(
+        "TEST_DATABASE_URL",
+        os.getenv(
+            "DATABASE_URL",
+            "postgresql://marketing_copilot:marketing_copilot_dev@localhost:5432/marketing_copilot_db",
+        ),
+    )
+
+    # Create engine with connection pooling
     engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
+        test_db_url,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
     )
 
     # Create all tables
@@ -32,25 +53,28 @@ def test_db_engine():
 
     yield engine
 
-    # Cleanup
+    # Cleanup: drop all tables
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
 
 @pytest.fixture(scope="function")
 def test_db_session(test_db_engine) -> Generator[Session, None, None]:
-    """Create a database session for testing."""
+    """Create a database session for testing with automatic rollback."""
     TestingSessionLocal = sessionmaker(
         autocommit=False,
         autoflush=False,
         bind=test_db_engine,
     )
 
+    # Create session - it will manage its own transaction
     session = TestingSessionLocal()
 
     try:
         yield session
     finally:
+        # Rollback any uncommitted changes to clean up test data
+        session.rollback()
         session.close()
 
 
