@@ -6,7 +6,7 @@ from backend.models.user import User
 from fastapi.testclient import TestClient
 
 
-def test_create_asset_success(test_client: TestClient, create_user, test_db_session):
+def test__create_asset__returns_201_and_creates_asset(test_client: TestClient, create_user, test_db_session):
     """Test successful asset creation."""
     # Create a user and project
     user, token = create_user(
@@ -53,8 +53,8 @@ def test_create_asset_success(test_client: TestClient, create_user, test_db_sess
     assert asset.project_id == project.id
 
 
-def test_create_asset_without_filename(test_client: TestClient, create_user, test_db_session):
-    """Test asset creation without filename (should use 'unnamed')."""
+def test__create_asset_without_filename__returns_422(test_client: TestClient, create_user, test_db_session):
+    """Test asset creation without filename (should be rejected)."""
     user, token = create_user(
         email="nofilename@example.com",
         password="testpassword123",
@@ -79,7 +79,7 @@ def test_create_asset_without_filename(test_client: TestClient, create_user, tes
     assert response.status_code == 422
 
 
-def test_create_asset_without_content_type(test_client: TestClient, create_user, test_db_session):
+def test__create_asset_without_content_type__uses_default_content_type(test_client: TestClient, create_user, test_db_session):
     """Test asset creation without content type (should use default)."""
     user, token = create_user(
         email="nocontenttype@example.com",
@@ -108,7 +108,7 @@ def test_create_asset_without_content_type(test_client: TestClient, create_user,
     assert data["content_type"] == "application/octet-stream"
 
 
-def test_create_asset_unauthorized(test_client: TestClient, test_db_session):
+def test__create_asset_without_auth__returns_403(test_client: TestClient, test_db_session):
     """Test asset creation without authentication returns 403."""
     # Create a user and project without token
     from backend.core.security import hash_password
@@ -142,7 +142,7 @@ def test_create_asset_unauthorized(test_client: TestClient, test_db_session):
     assert response.status_code == 403
 
 
-def test_create_asset_project_not_found(test_client: TestClient, create_user):
+def test__create_asset_with_nonexistent_project__returns_404(test_client: TestClient, create_user):
     """Test asset creation with non-existent project returns 404."""
     user, token = create_user(
         email="notfound@example.com",
@@ -163,7 +163,7 @@ def test_create_asset_project_not_found(test_client: TestClient, create_user):
     assert response.json()["detail"] == "Project not found"
 
 
-def test_create_asset_other_user_project(test_client: TestClient, create_user, test_db_session):
+def test__create_asset_in_other_user_project__returns_404(test_client: TestClient, create_user, test_db_session):
     """Test asset creation in another user's project returns 404."""
     user1, _ = create_user(
         email="owner@example.com",
@@ -194,7 +194,7 @@ def test_create_asset_other_user_project(test_client: TestClient, create_user, t
     assert response.json()["detail"] == "Project not found"
 
 
-def test_list_assets_success(test_client: TestClient, create_user, test_db_session):
+def test__list_assets__returns_all_assets(test_client: TestClient, create_user, test_db_session):
     """Test listing assets for a project."""
     user, token = create_user(
         email="listuser@example.com",
@@ -238,7 +238,7 @@ def test_list_assets_success(test_client: TestClient, create_user, test_db_sessi
     assert "asset2.jpg" in filenames
 
 
-def test_list_assets_empty(test_client: TestClient, create_user, test_db_session):
+def test__list_assets_when_empty__returns_empty_list(test_client: TestClient, create_user, test_db_session):
     """Test listing assets when project has none."""
     user, token = create_user(
         email="emptyassets@example.com",
@@ -261,7 +261,7 @@ def test_list_assets_empty(test_client: TestClient, create_user, test_db_session
     assert data == []
 
 
-def test_list_assets_project_not_found(test_client: TestClient, create_user):
+def test__list_assets_with_nonexistent_project__returns_404(test_client: TestClient, create_user):
     """Test listing assets for non-existent project returns 404."""
     user, token = create_user(
         email="listnotfound@example.com",
@@ -278,7 +278,7 @@ def test_list_assets_project_not_found(test_client: TestClient, create_user):
     assert response.json()["detail"] == "Project not found"
 
 
-def test_get_asset_success(test_client: TestClient, create_user, test_db_session):
+def test__get_asset__returns_asset_details(test_client: TestClient, create_user, test_db_session):
     """Test getting a specific asset."""
     user, token = create_user(
         email="getuser@example.com",
@@ -317,7 +317,7 @@ def test_get_asset_success(test_client: TestClient, create_user, test_db_session
     assert data["project_id"] == str(project.id)
 
 
-def test_get_asset_not_found(test_client: TestClient, create_user, test_db_session):
+def test__get_nonexistent_asset__returns_404(test_client: TestClient, create_user, test_db_session):
     """Test getting non-existent asset returns 404."""
     user, token = create_user(
         email="getnotfound@example.com",
@@ -339,7 +339,7 @@ def test_get_asset_not_found(test_client: TestClient, create_user, test_db_sessi
     assert response.json()["detail"] == "Asset not found"
 
 
-def test_get_asset_project_not_found(test_client: TestClient, create_user):
+def test__get_asset_with_nonexistent_project__returns_404(test_client: TestClient, create_user):
     """Test getting asset with non-existent project returns 404."""
     user, token = create_user(
         email="getprojectnotfound@example.com",
@@ -356,7 +356,7 @@ def test_get_asset_project_not_found(test_client: TestClient, create_user):
     assert response.json()["detail"] == "Project not found"
 
 
-def test_update_asset_success(test_client: TestClient, create_user, test_db_session):
+def test__update_asset__updates_all_fields(test_client: TestClient, create_user, test_db_session):
     """Test successful asset update."""
     user, token = create_user(
         email="updateuser@example.com",
@@ -407,7 +407,7 @@ def test_update_asset_success(test_client: TestClient, create_user, test_db_sess
     assert asset.asset_metadata == {"author": "Updated Author", "version": "2.0"}
 
 
-def test_update_asset_partial(test_client: TestClient, create_user, test_db_session):
+def test__update_asset_partially__updates_only_provided_fields(test_client: TestClient, create_user, test_db_session):
     """Test partial asset update (only filename)."""
     user, token = create_user(
         email="partial@example.com",
@@ -445,7 +445,7 @@ def test_update_asset_partial(test_client: TestClient, create_user, test_db_sess
     assert data["ingested"] is False  # Unchanged
 
 
-def test_update_asset_metadata_only(test_client: TestClient, create_user, test_db_session):
+def test__update_asset_metadata_only__updates_only_metadata(test_client: TestClient, create_user, test_db_session):
     """Test updating only metadata."""
     user, token = create_user(
         email="metadatonly@example.com",
@@ -482,7 +482,7 @@ def test_update_asset_metadata_only(test_client: TestClient, create_user, test_d
     assert data["filename"] == "test.pdf"  # Unchanged
 
 
-def test_update_asset_not_found(test_client: TestClient, create_user, test_db_session):
+def test__update_nonexistent_asset__returns_404(test_client: TestClient, create_user, test_db_session):
     """Test updating non-existent asset returns 404."""
     user, token = create_user(
         email="updatenotfound@example.com",
@@ -507,7 +507,7 @@ def test_update_asset_not_found(test_client: TestClient, create_user, test_db_se
     assert response.json()["detail"] == "Asset not found"
 
 
-def test_update_asset_project_not_found(test_client: TestClient, create_user):
+def test__update_asset_with_nonexistent_project__returns_404(test_client: TestClient, create_user):
     """Test updating asset with non-existent project returns 404."""
     user, token = create_user(
         email="updateprojectnotfound@example.com",
@@ -527,7 +527,7 @@ def test_update_asset_project_not_found(test_client: TestClient, create_user):
     assert response.json()["detail"] == "Project not found"
 
 
-def test_delete_asset_success(test_client: TestClient, create_user, test_db_session):
+def test__delete_asset__removes_asset(test_client: TestClient, create_user, test_db_session):
     """Test successful asset deletion."""
     user, token = create_user(
         email="deleteuser@example.com",
@@ -563,7 +563,7 @@ def test_delete_asset_success(test_client: TestClient, create_user, test_db_sess
     assert deleted_asset is None
 
 
-def test_delete_asset_not_found(test_client: TestClient, create_user, test_db_session):
+def test__delete_nonexistent_asset__returns_404(test_client: TestClient, create_user, test_db_session):
     """Test deleting non-existent asset returns 404."""
     user, token = create_user(
         email="deletenotfound@example.com",
@@ -585,7 +585,7 @@ def test_delete_asset_not_found(test_client: TestClient, create_user, test_db_se
     assert response.json()["detail"] == "Asset not found"
 
 
-def test_delete_asset_project_not_found(test_client: TestClient, create_user):
+def test__delete_asset_with_nonexistent_project__returns_404(test_client: TestClient, create_user):
     """Test deleting asset with non-existent project returns 404."""
     user, token = create_user(
         email="deleteprojectnotfound@example.com",
@@ -602,7 +602,7 @@ def test_delete_asset_project_not_found(test_client: TestClient, create_user):
     assert response.json()["detail"] == "Project not found"
 
 
-def test_create_asset_different_file_types(test_client: TestClient, create_user, test_db_session):
+def test__create_assets_with_different_file_types__creates_all_types(test_client: TestClient, create_user, test_db_session):
     """Test creating assets with different file types."""
     user, token = create_user(
         email="filetypes@example.com",
