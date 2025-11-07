@@ -169,7 +169,7 @@ def test_signup_response_structure(test_client: TestClient):
 def test_login_success(test_client: TestClient, create_user):
     """Test successful user login."""
     # Create a user directly in the database
-    user = create_user(
+    user, _ = create_user(
         email="login@example.com",
         password="testpassword123",
         name="Login User",
@@ -226,7 +226,7 @@ def test_login_invalid_email(test_client: TestClient):
 def test_login_invalid_password(test_client: TestClient, create_user):
     """Test login with wrong password returns 401."""
     # Create a user directly in the database
-    create_user(
+    _, _ = create_user(
         email="login@example.com",
         password="correctpassword123",
         name="Wrong Pass User",
@@ -272,7 +272,7 @@ def test_login_missing_fields(test_client: TestClient):
 def test_login_token_contains_user_id(test_client: TestClient, create_user):
     """Test that login token contains correct user ID."""
     # Create a user directly in the database
-    user = create_user(
+    user, _ = create_user(
         email="tokenuser@example.com",
         password="testpassword123",
         name="Token User",
@@ -297,7 +297,7 @@ def test_login_token_contains_user_id(test_client: TestClient, create_user):
 def test_login_response_structure(test_client: TestClient, create_user):
     """Test that login response has correct structure."""
     # Create a user directly in the database
-    create_user(
+    _, _ = create_user(
         email="structure@example.com",
         password="testpassword123",
         name="Structure User",
@@ -339,7 +339,7 @@ def test_login_response_structure(test_client: TestClient, create_user):
 def test_login_empty_password(test_client: TestClient, create_user):
     """Test login with empty password returns 401."""
     # Create a user directly in the database
-    create_user(
+    _, _ = create_user(
         email="emptypass@example.com",
         password="testpassword123",
         name="Empty Pass User",
@@ -360,7 +360,7 @@ def test_login_empty_password(test_client: TestClient, create_user):
 def test_login_token_expiration(test_client: TestClient, create_user):
     """Test that login token has expiration claim."""
     # Create a user directly in the database
-    create_user(
+    _, _ = create_user(
         email="expire@example.com",
         password="testpassword123",
         name="Expire User",
