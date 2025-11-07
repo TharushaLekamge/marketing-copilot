@@ -1,7 +1,9 @@
 """Pytest fixtures for backend tests."""
 
 import os
+import shutil
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable, Generator
 from uuid import uuid4
 
@@ -10,16 +12,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-# Set required environment variables before importing backend modules
-# Default test database URL - can be overridden via TEST_DATABASE_URL env var
-default_test_db_url = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql://marketing_copilot:marketing_copilot_dev@localhost:5432/marketing_copilot_db",
-)
-os.environ.setdefault("DATABASE_URL", default_test_db_url)
-os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-do-not-use-in-production")
-
 from backend.core.security import create_access_token, hash_password
+from backend.core.storage import LocalStorage
 from backend.database import Base, get_db
 from backend.main import app
 from backend.models.user import User
@@ -156,3 +150,32 @@ def create_user(test_db_session: Session) -> Callable:
         return user, token
 
     return _create_user
+
+
+@pytest.fixture(scope="function")
+def temp_storage(tmp_path: Path) -> Generator[LocalStorage, None, None]:
+    """Create a temporary storage directory for testing.
+
+    Args:
+        tmp_path: Pytest temporary directory fixture
+
+    Yields:
+        LocalStorage: Storage instance using temporary directory
+    """
+    storage_dir = tmp_path / "test_uploads"
+    storage = LocalStorage(base_path=storage_dir)
+
+    # Override the global storage instance
+    import backend.core.storage as storage_module
+
+    original_storage = getattr(storage_module, "_storage", None)
+    storage_module._storage = storage
+
+    try:
+        yield storage
+    finally:
+        # Restore original storage
+        storage_module._storage = original_storage
+        # Cleanup: remove temporary directory
+        if storage_dir.exists():
+            shutil.rmtree(storage_dir, ignore_errors=True)

@@ -48,10 +48,12 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       APP_ENV: development
       APP_NAME: Marketing Copilot
+      STORAGE_PATH: /app/uploads
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app/backend
+      - ./uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

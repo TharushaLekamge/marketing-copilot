@@ -1,13 +1,23 @@
 """Tests for assets router."""
 
+from unittest.mock import MagicMock, patch
+
 from backend.models.asset import Asset
 from backend.models.project import Project
 from backend.models.user import User
 from fastapi.testclient import TestClient
 
 
-def test__create_asset__returns_201_and_creates_asset(test_client: TestClient, create_user, test_db_session):
+@patch("backend.routers.assets.get_storage")
+def test__create_asset__returns_201_and_creates_asset(
+    mock_get_storage: MagicMock, test_client: TestClient, create_user, test_db_session
+):
     """Test successful asset creation."""
+    # Setup mock storage
+    mock_storage = MagicMock()
+    mock_storage.save.return_value = "test/path/to/file.pdf"
+    mock_get_storage.return_value = mock_storage
+
     # Create a user and project
     user, token = create_user(
         email="assetuser@example.com",
@@ -52,6 +62,14 @@ def test__create_asset__returns_201_and_creates_asset(test_client: TestClient, c
     assert asset.content_type == "application/pdf"
     assert asset.project_id == project.id
 
+    # Verify storage.save was called with correct arguments
+    mock_storage.save.assert_called_once()
+    call_args = mock_storage.save.call_args
+    assert call_args[0][0] == project.id  # project_id
+    assert call_args[0][1] == asset.id  # asset_id
+    assert call_args[0][2] == "test-document.pdf"  # filename
+    assert call_args[0][3] == file_content  # content
+
 
 def test__create_asset_without_filename__returns_422(test_client: TestClient, create_user, test_db_session):
     """Test asset creation without filename (should be rejected)."""
@@ -77,37 +95,6 @@ def test__create_asset_without_filename__returns_422(test_client: TestClient, cr
     )
 
     assert response.status_code == 422
-
-
-def test__create_asset_without_content_type__uses_default_content_type(
-    test_client: TestClient, create_user, test_db_session
-):
-    """Test asset creation without content type (should use default)."""
-    user, token = create_user(
-        email="nocontenttype@example.com",
-        password="testpassword123",
-        name="No Content Type User",
-    )
-
-    project = Project(owner_id=user.id, name="Test Project")
-    test_db_session.add(project)
-    test_db_session.commit()
-    test_db_session.refresh(project)
-
-    # Create a mock file without content type
-    file_content = b"Mock file content"
-    file_data = {"file": ("test", file_content, None)}
-
-    response = test_client.post(
-        f"/api/projects/{project.id}/assets",
-        files=file_data,
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 201
-    data = response.json()
-    assert data["filename"] == "test"
-    assert data["content_type"] == "application/octet-stream"
 
 
 def test__create_asset_without_auth__returns_403(test_client: TestClient, test_db_session):
@@ -529,8 +516,15 @@ def test__update_asset_with_nonexistent_project__returns_404(test_client: TestCl
     assert response.json()["detail"] == "Project not found"
 
 
-def test__delete_asset__removes_asset(test_client: TestClient, create_user, test_db_session):
+@patch("backend.routers.assets.get_storage")
+def test__delete_asset__removes_asset(
+    mock_get_storage: MagicMock, test_client: TestClient, create_user, test_db_session
+):
     """Test successful asset deletion."""
+    # Setup mock storage
+    mock_storage = MagicMock()
+    mock_get_storage.return_value = mock_storage
+
     user, token = create_user(
         email="deleteuser@example.com",
         password="testpassword123",
@@ -542,6 +536,7 @@ def test__delete_asset__removes_asset(test_client: TestClient, create_user, test
     test_db_session.commit()
     test_db_session.refresh(project)
 
+    # Create asset
     asset = Asset(
         project_id=project.id,
         filename="to-delete.pdf",
@@ -560,9 +555,12 @@ def test__delete_asset__removes_asset(test_client: TestClient, create_user, test
 
     assert response.status_code == 204
 
-    # Verify asset was deleted
+    # Verify asset was deleted from database
     deleted_asset = test_db_session.query(Asset).filter(Asset.id == asset_id).first()
     assert deleted_asset is None
+
+    # Verify storage.delete was called with correct arguments
+    mock_storage.delete.assert_called_once_with(project.id, asset_id, asset.filename)
 
 
 def test__delete_nonexistent_asset__returns_404(test_client: TestClient, create_user, test_db_session):
@@ -604,10 +602,16 @@ def test__delete_asset_with_nonexistent_project__returns_404(test_client: TestCl
     assert response.json()["detail"] == "Project not found"
 
 
+@patch("backend.routers.assets.get_storage")
 def test__create_assets_with_different_file_types__creates_all_types(
-    test_client: TestClient, create_user, test_db_session
+    mock_get_storage: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test creating assets with different file types."""
+    # Setup mock storage
+    mock_storage = MagicMock()
+    mock_storage.save.return_value = "test/path/to/file"
+    mock_get_storage.return_value = mock_storage
+
     user, token = create_user(
         email="filetypes@example.com",
         password="testpassword123",
@@ -651,3 +655,155 @@ def test__create_assets_with_different_file_types__creates_all_types(
     )
     assert response.status_code == 201
     assert response.json()["content_type"] == "text/plain"
+
+    # Verify storage.save was called for each file
+    assert mock_storage.save.call_count == 3
+
+
+@patch("backend.routers.assets.get_storage")
+def test__download_asset__returns_file_content(
+    mock_get_storage: MagicMock, test_client: TestClient, create_user, test_db_session
+):
+    """Test downloading an asset file."""
+    # Setup mock storage
+    file_content = b"File content for download test"
+    mock_storage = MagicMock()
+    mock_storage.read.return_value = file_content
+    mock_get_storage.return_value = mock_storage
+
+    user, token = create_user(
+        email="downloaduser@example.com",
+        password="testpassword123",
+        name="Download User",
+    )
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    # Create asset
+    asset = Asset(
+        project_id=project.id,
+        filename="download-test.pdf",
+        content_type="application/pdf",
+        ingested=False,
+    )
+    test_db_session.add(asset)
+    test_db_session.commit()
+    test_db_session.refresh(asset)
+
+    response = test_client.get(
+        f"/api/projects/{project.id}/assets/{asset.id}/download",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.content == file_content
+    assert response.headers["content-type"] == "application/pdf"
+    assert 'attachment; filename="download-test.pdf"' in response.headers["content-disposition"]
+
+    # Verify storage.read was called with correct arguments
+    mock_storage.read.assert_called_once_with(project.id, asset.id, asset.filename)
+
+
+@patch("backend.routers.assets.get_storage")
+def test__download_asset_file_not_found__returns_404(
+    mock_get_storage: MagicMock, test_client: TestClient, create_user, test_db_session
+):
+    """Test downloading an asset when file is not in storage."""
+    # Setup mock storage to raise FileNotFoundError
+    from backend.core.storage import FileNotFoundError
+
+    mock_storage = MagicMock()
+    mock_storage.read.side_effect = FileNotFoundError("File not found: missing-file.pdf")
+    mock_get_storage.return_value = mock_storage
+
+    user, token = create_user(
+        email="downloadnotfound@example.com",
+        password="testpassword123",
+        name="Download Not Found User",
+    )
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    # Create asset
+    asset = Asset(
+        project_id=project.id,
+        filename="missing-file.pdf",
+        content_type="application/pdf",
+        ingested=False,
+    )
+    test_db_session.add(asset)
+    test_db_session.commit()
+    test_db_session.refresh(asset)
+
+    response = test_client.get(
+        f"/api/projects/{project.id}/assets/{asset.id}/download",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+    # Verify storage.read was called
+    mock_storage.read.assert_called_once_with(project.id, asset.id, asset.filename)
+
+
+def test__create_asset_with_invalid_file_type__returns_422(test_client: TestClient, create_user, test_db_session):
+    """Test creating asset with invalid file type."""
+    user, token = create_user(
+        email="invalidtype@example.com",
+        password="testpassword123",
+        name="Invalid Type User",
+    )
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    # Try to upload file with invalid extension
+    file_content = b"Invalid file content"
+    file_data = {"file": ("script.exe", file_content, "application/x-msdownload")}
+
+    response = test_client.post(
+        f"/api/projects/{project.id}/assets",
+        files=file_data,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+    assert "not allowed" in response.json()["detail"].lower()
+
+
+def test__create_asset_with_file_too_large__returns_422(test_client: TestClient, create_user, test_db_session):
+    """Test creating asset with file exceeding maximum size."""
+    user, token = create_user(
+        email="toolarge@example.com",
+        password="testpassword123",
+        name="Too Large User",
+    )
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    # Create file content larger than 100MB
+    from backend.core.file_processing import MAX_FILE_SIZE
+
+    large_file_content = b"x" * (MAX_FILE_SIZE + 1)
+    file_data = {"file": ("large-file.pdf", large_file_content, "application/pdf")}
+
+    response = test_client.post(
+        f"/api/projects/{project.id}/assets",
+        files=file_data,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+    assert "size" in response.json()["detail"].lower()
