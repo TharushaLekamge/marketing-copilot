@@ -17,9 +17,7 @@ default_test_db_url = os.getenv(
     "postgresql://marketing_copilot:marketing_copilot_dev@localhost:5432/marketing_copilot_db",
 )
 os.environ.setdefault("DATABASE_URL", default_test_db_url)
-os.environ.setdefault(
-    "SECRET_KEY", "test-secret-key-for-testing-only-do-not-use-in-production"
-)
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-do-not-use-in-production")
 
 from backend.core.security import create_access_token, hash_password
 from backend.database import Base, get_db

@@ -1,10 +1,11 @@
 """Initial migration: create users, projects, and assets tables
 
 Revision ID: 20250101_000000
-Revises: 
+Revises:
 Create Date: 2025-01-01 00:00:00.000000
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -98,4 +99,3 @@ def downgrade() -> None:
 
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
-
