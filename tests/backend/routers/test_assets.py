@@ -79,7 +79,9 @@ def test__create_asset_without_filename__returns_422(test_client: TestClient, cr
     assert response.status_code == 422
 
 
-def test__create_asset_without_content_type__uses_default_content_type(test_client: TestClient, create_user, test_db_session):
+def test__create_asset_without_content_type__uses_default_content_type(
+    test_client: TestClient, create_user, test_db_session
+):
     """Test asset creation without content type (should use default)."""
     user, token = create_user(
         email="nocontenttype@example.com",
@@ -602,7 +604,9 @@ def test__delete_asset_with_nonexistent_project__returns_404(test_client: TestCl
     assert response.json()["detail"] == "Project not found"
 
 
-def test__create_assets_with_different_file_types__creates_all_types(test_client: TestClient, create_user, test_db_session):
+def test__create_assets_with_different_file_types__creates_all_types(
+    test_client: TestClient, create_user, test_db_session
+):
     """Test creating assets with different file types."""
     user, token = create_user(
         email="filetypes@example.com",
