@@ -7,7 +7,7 @@ line-length = 120
 [format]
 # Automatically removes trailing whitespace and whitespace on blank lines
 skip-magic-trailing-comma = false
-line-ending = "auto"
+line-ending = "cr-lf"
 
 # Linter rules
 [lint]
