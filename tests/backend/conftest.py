@@ -11,7 +11,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from backend.core.security import hash_password
+from backend.core.security import create_access_token, hash_password
 from backend.database import Base, get_db
 from backend.main import app
 from backend.models.user import User
@@ -83,17 +83,18 @@ def create_user(test_db_session: Session) -> Callable:
         test_db_session: Database session fixture
 
     Returns:
-        Function that creates a user with given parameters
+        Function that creates a user with given parameters and returns (user, token)
 
     Example:
         ```python
         def test_example(create_user):
-            user = create_user(
+            user, token = create_user(
                 email="test@example.com",
                 password="testpassword123",
                 name="Test User"
             )
             assert user.email == "test@example.com"
+            # Use token for authenticated requests
         ```
     """
 
@@ -102,8 +103,8 @@ def create_user(test_db_session: Session) -> Callable:
         password: str,
         name: str,
         role: str = "user",
-    ) -> User:
-        """Create a user in the database.
+    ) -> tuple[User, str]:
+        """Create a user in the database and return user with access token.
 
         Args:
             email: User email address
@@ -112,7 +113,7 @@ def create_user(test_db_session: Session) -> Callable:
             role: User role (default: "user")
 
         Returns:
-            Created User object
+            Tuple of (Created User object, JWT access token)
         """
         hashed_password = hash_password(password)
         user = User(
@@ -126,6 +127,10 @@ def create_user(test_db_session: Session) -> Callable:
         test_db_session.add(user)
         test_db_session.commit()
         test_db_session.refresh(user)
-        return user
+
+        # Create access token for the user
+        token = create_access_token(data={"sub": str(user.id)})
+
+        return user, token
 
     return _create_user
