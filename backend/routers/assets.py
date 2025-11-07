@@ -189,7 +189,6 @@ async def update_asset(
 
     asset.updated_at = datetime.now(timezone.utc)
 
-
     db.commit()
     db.refresh(asset)
 

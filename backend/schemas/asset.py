@@ -34,12 +34,8 @@ class AssetCreate(BaseModel):
 class AssetUpdate(BaseModel):
     """Schema for updating an existing asset."""
 
-    filename: Optional[str] = Field(
-        None, min_length=1, max_length=255, description="New name for the asset file"
-    )
-    content_type: Optional[str] = Field(
-        None, min_length=1, max_length=100, description="New MIME type of the asset"
-    )
+    filename: Optional[str] = Field(None, min_length=1, max_length=255, description="New name for the asset file")
+    content_type: Optional[str] = Field(None, min_length=1, max_length=100, description="New MIME type of the asset")
     ingested: Optional[bool] = Field(None, description="Whether the asset has been ingested")
     metadata: Optional[dict] = Field(None, description="New JSON metadata for the asset")
 
