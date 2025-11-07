@@ -44,4 +44,3 @@ class Asset(Base):
     def __repr__(self) -> str:
         """String representation of Asset."""
         return f"<Asset(id={self.id}, filename={self.filename}, project_id={self.project_id})>"
-
