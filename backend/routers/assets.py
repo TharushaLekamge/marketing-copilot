@@ -14,7 +14,7 @@ from backend.database import get_db
 from backend.models.asset import Asset
 from backend.models.project import Project
 from backend.models.user import User
-from backend.schemas.asset import AssetCreate, AssetResponse, AssetUpdate
+from backend.schemas.asset import AssetResponse, AssetUpdate
 
 router = APIRouter(prefix="/api/projects", tags=["assets"])
 
@@ -334,7 +334,7 @@ async def delete_asset(
     except FileNotFoundError:
         # File doesn't exist in storage, continue with database deletion
         pass
-    except StorageError as e:
+    except StorageError:
         # Log error but continue with database deletion
         # In production, you might want to handle this differently
         pass

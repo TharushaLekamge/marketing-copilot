@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import BinaryIO
 from uuid import UUID
 
 from backend.config import get_settings

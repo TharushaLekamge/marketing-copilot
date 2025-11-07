@@ -1,12 +1,11 @@
 """Unit tests for LocalStorage class."""
 
-import os
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
 
-from backend.core.storage import FileNotFoundError, LocalStorage, StorageError
+from backend.core.storage import FileNotFoundError, LocalStorage
 
 
 @pytest.fixture
