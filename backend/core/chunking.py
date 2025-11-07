@@ -167,7 +167,6 @@ def chunk_text(
                 sentence_parts = split_text_at_words(sentence, max_chars)
 
                 for part in sentence_parts:
-                    part_token_count = get_token_count(part, encoding_name)
                     test_with_part = f"{current_chunk_text} {part}".strip() if current_chunk_text else part
                     test_with_part_tokens = get_token_count(test_with_part, encoding_name)
 
