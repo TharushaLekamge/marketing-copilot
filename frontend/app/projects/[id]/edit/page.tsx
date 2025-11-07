@@ -1,0 +1,201 @@
+"use client";
+
+import { useAuth } from "@/contexts/AuthContext";
+import { apiClient, Project, ProjectUpdate } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import React, { useCallback, useEffect, useState } from "react";
+
+export default function EditProjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = React.use(params);
+  const { user, loading: authLoading, logout } = useAuth();
+  const router = useRouter();
+  const [project, setProject] = useState<Project | null>(null);
+  const [formData, setFormData] = useState<ProjectUpdate>({
+    name: "",
+    description: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
+
+  const loadProject = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await apiClient.getProject(id);
+      setProject(data);
+      setFormData({
+        name: data.name,
+        description: data.description || "",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load project");
+      if (err instanceof Error && err.message.includes("404")) {
+        router.push("/projects");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [id, router]);
+
+  useEffect(() => {
+    if (user && id) {
+      loadProject();
+    }
+  }, [user, id, loadProject]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name?.trim()) {
+      setError("Project name is required");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      await apiClient.updateProject(id, {
+        name: formData.name?.trim() || null,
+        description: formData.description?.trim() || null,
+      });
+      router.push(`/projects/${id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update project");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!user || !project) {
+    return null;
+  }
+
+  return (
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <header className="bg-white shadow">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push(`/projects/${id}`)}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                ← Back to Project
+              </button>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Marketing Copilot
+              </h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">{user.email}</span>
+              <button
+                onClick={logout}
+                className="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <h2 className="text-3xl font-bold text-gray-900">Edit Project</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Update your project details.
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-white p-6 shadow">
+          {error && (
+            <div className="mb-4 rounded-md bg-red-50 p-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label
+                htmlFor="name"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Project Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="name"
+                required
+                value={formData.name || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                placeholder="Enter project name"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="description"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Description
+              </label>
+              <textarea
+                id="description"
+                rows={4}
+                value={formData.description || ""}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                placeholder="Enter project description (optional)"
+              />
+            </div>
+
+            <div className="flex justify-end gap-4">
+              <button
+                type="button"
+                onClick={() => router.push(`/projects/${id}`)}
+                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className={`rounded-md px-4 py-2 text-sm font-medium text-white ${
+                  saving
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+  );
+}
+

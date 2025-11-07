@@ -25,6 +25,36 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface Project {
+  id: string;
+  owner_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCreate {
+  name: string;
+  description?: string | null;
+}
+
+export interface ProjectUpdate {
+  name?: string | null;
+  description?: string | null;
+}
+
+export interface Asset {
+  id: string;
+  project_id: string;
+  filename: string;
+  content_type: string;
+  ingested: boolean;
+  asset_metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -37,10 +67,14 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const token = this.getToken();
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-      ...options.headers,
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
     };
+
+    // Only set Content-Type for non-FormData requests
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
 
     if (token) {
       headers.Authorization = `Bearer ${token}`;
@@ -56,6 +90,11 @@ class ApiClient {
         detail: response.statusText,
       }));
       throw new Error(error.detail || "An error occurred");
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return null as T;
     }
 
     return response.json();
@@ -94,6 +133,102 @@ class ApiClient {
 
   logout(): void {
     this.removeToken();
+  }
+
+  async getCurrentUser(): Promise<User> {
+    return this.request<User>("/api/auth/me");
+  }
+
+  // Project methods
+  async getProjects(): Promise<Project[]> {
+    return this.request<Project[]>("/api/projects");
+  }
+
+  async getProject(id: string): Promise<Project> {
+    return this.request<Project>(`/api/projects/${id}`);
+  }
+
+  async createProject(data: ProjectCreate): Promise<Project> {
+    return this.request<Project>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProject(id: string, data: ProjectUpdate): Promise<Project> {
+    return this.request<Project>(`/api/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await this.request(`/api/projects/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Asset methods
+  async getAssets(projectId: string): Promise<Asset[]> {
+    return this.request<Asset[]>(`/api/projects/${projectId}/assets`);
+  }
+
+  async getAsset(projectId: string, assetId: string): Promise<Asset> {
+    return this.request<Asset>(`/api/projects/${projectId}/assets/${assetId}`);
+  }
+
+  async uploadAsset(projectId: string, file: File): Promise<Asset> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return this.request<Asset>(`/api/projects/${projectId}/assets`, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  async updateAsset(
+    projectId: string,
+    assetId: string,
+    data: Partial<{
+      filename: string;
+      content_type: string;
+      ingested: boolean;
+      metadata: Record<string, unknown>;
+    }>
+  ): Promise<Asset> {
+    return this.request<Asset>(`/api/projects/${projectId}/assets/${assetId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAsset(projectId: string, assetId: string): Promise<void> {
+    await this.request(`/api/projects/${projectId}/assets/${assetId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async downloadAsset(projectId: string, assetId: string): Promise<Blob> {
+    const token = this.getToken();
+    const headers: HeadersInit = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `${this.baseUrl}/api/projects/${projectId}/assets/${assetId}/download`,
+      { headers }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: response.statusText,
+      }));
+      throw new Error(error.detail || "An error occurred");
+    }
+
+    return response.blob();
   }
 }
 
