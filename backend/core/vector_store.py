@@ -320,7 +320,7 @@ class FAISSSQLiteVectorStore(VectorStore):
 
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO vectors 
+                    INSERT OR REPLACE INTO vectors
                     (id, asset_id, project_id, chunk_index, text, embedding, metadata, faiss_index)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,

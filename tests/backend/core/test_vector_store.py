@@ -84,7 +84,7 @@ class TestFAISSSQLiteVectorStore:
 
     def test__init__creates_database_schema(self, temp_db_path: Path):
         """Test that database schema is created on initialization."""
-        store = FAISSSQLiteVectorStore(db_path=temp_db_path, dimension=384)
+        FAISSSQLiteVectorStore(db_path=temp_db_path, dimension=384)
         assert temp_db_path.exists()
 
         # Check that tables exist by querying
