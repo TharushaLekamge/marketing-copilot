@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U marketing_copilot"]
+      test: ["CMD-SHELL", "pg_isready -U marketing_copilot -d marketing_copilot_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -63,7 +63,7 @@ services:
     command: >
       sh -c "
         echo 'Waiting for database to be ready...' &&
-        until pg_isready -h postgres -U marketing_copilot; do 
+        until pg_isready -h postgres -U marketing_copilot -d marketing_copilot_db; do 
           echo 'Database not ready, waiting...' && 
           sleep 2
         done &&
