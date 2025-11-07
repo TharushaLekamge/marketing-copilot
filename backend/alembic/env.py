@@ -13,6 +13,8 @@ from alembic import context
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+import os
+
 from backend.config import settings
 from backend.database import Base
 from backend.models import Asset, Project, User  # noqa: F401
@@ -22,7 +24,17 @@ from backend.models import Asset, Project, User  # noqa: F401
 config = context.config
 
 # Set database URL from settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Prefer environment variable, fallback to settings
+database_url = os.getenv("DATABASE_URL") or settings.database_url
+
+# Ensure database name is correct (marketing_copilot_db, not marketing_copilot)
+if database_url and "/marketing_copilot" in database_url and "/marketing_copilot_db" not in database_url:
+    # Fix incorrect database name
+    database_url = database_url.replace("/marketing_copilot", "/marketing_copilot_db")
+
+config.set_main_option("sqlalchemy.url", database_url)
+
+print(f"Database URL: {database_url}")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

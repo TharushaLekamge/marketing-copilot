@@ -1,0 +1,7 @@
+# --- LLM & Embeddings (for RAG and AI features) ---
+# Heavy ML packages - rarely change, cached separately
+openai==1.45.0
+tiktoken==0.7.0
+sentence-transformers==3.0.1
+faiss-cpu==1.8.0.post1
+

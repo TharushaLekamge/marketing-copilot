@@ -24,4 +24,7 @@ htmlcov
 *.swp
 *.swo
 *~
+# Exclude local wheelhouse if it exists
+wheelhouse
+*.whl
 
