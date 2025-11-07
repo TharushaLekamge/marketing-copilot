@@ -24,6 +24,74 @@ Marketing Copilot is a full-stack application built with:
   - Response: `200 OK` with JWT access token and user information
   - Returns `401 Unauthorized` for invalid credentials
 
+### Projects
+
+All project endpoints require authentication via Bearer token in the Authorization header.
+
+- **POST** `/api/projects` - Create a new project
+  - Request: `{ "name": "Project Name", "description": "Project description" }`
+  - Response: `201 Created` with project information
+  - Requires authentication
+
+- **GET** `/api/projects` - List all projects for the current user
+  - Response: `200 OK` with list of projects
+  - Returns only projects owned by the authenticated user
+  - Requires authentication
+
+- **GET** `/api/projects/{project_id}` - Get a specific project
+  - Response: `200 OK` with project information
+  - Returns `404 Not Found` if project doesn't exist or user doesn't have access
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Requires authentication
+
+- **PATCH** `/api/projects/{project_id}` - Update a project
+  - Request: `{ "name": "Updated Name", "description": "Updated description" }` (all fields optional)
+  - Response: `200 OK` with updated project information
+  - Returns `404 Not Found` if project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Requires authentication
+
+- **DELETE** `/api/projects/{project_id}` - Delete a project
+  - Response: `204 No Content` on success
+  - Returns `404 Not Found` if project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Requires authentication
+
+### Assets
+
+All asset endpoints require authentication via Bearer token in the Authorization header. Assets represent files (documents, images, etc.) that belong to projects.
+
+- **POST** `/api/projects/{project_id}/assets` - Upload a new asset (file upload)
+  - Request: Multipart form data with `file` field
+  - Response: `201 Created` with asset metadata (id, filename, content_type, ingested, metadata, timestamps)
+  - Returns `404 Not Found` if project doesn't exist or user doesn't own it
+  - Returns `422 Unprocessable Entity` if filename is missing or empty
+  - Defaults to `application/octet-stream` if content_type is not provided
+  - Requires authentication
+  - Note: File content storage (S3, local storage, etc.) is not yet implemented - only metadata is stored
+
+- **GET** `/api/projects/{project_id}/assets` - List all assets for a project
+  - Response: `200 OK` with list of assets
+  - Returns `404 Not Found` if project doesn't exist or user doesn't own it
+  - Requires authentication
+
+- **GET** `/api/projects/{project_id}/assets/{asset_id}` - Get a specific asset
+  - Response: `200 OK` with asset information
+  - Returns `404 Not Found` if asset or project doesn't exist or user doesn't own the project
+  - Requires authentication
+
+- **PATCH** `/api/projects/{project_id}/assets/{asset_id}` - Update an asset
+  - Request: `{ "filename": "new-name.pdf", "content_type": "application/pdf", "ingested": true, "metadata": { "key": "value" } }` (all fields optional)
+  - Response: `200 OK` with updated asset information
+  - Returns `404 Not Found` if asset or project doesn't exist or user doesn't own the project
+  - Requires authentication
+
+- **DELETE** `/api/projects/{project_id}/assets/{asset_id}` - Delete an asset
+  - Response: `204 No Content` on success
+  - Returns `404 Not Found` if asset or project doesn't exist or user doesn't own the project
+  - Requires authentication
+  - Note: File deletion from storage (S3, local storage, etc.) is not yet implemented - only database record is deleted
+
 ### Health Check
 
 - **GET** `/health` - Application health check
