@@ -28,7 +28,7 @@ jobs:
       
       - name: Run ruff formatter check
         run: |
-          ruff format --check backend/ tests/backend/
+          ruff format --check backend/ tests/backend/ || (ruff format --diff backend/ tests/backend/ && exit 1)
 
   lint-frontend:
     runs-on: ubuntu-latest
