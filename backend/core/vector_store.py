@@ -1,5 +1,6 @@
 """Vector store abstraction for storing and retrieving document embeddings."""
 
+import logging
 import json
 import sqlite3
 from abc import ABC, abstractmethod
@@ -10,6 +11,9 @@ from uuid import UUID
 
 import faiss
 import numpy as np
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -134,7 +138,7 @@ class FAISSSQLiteVectorStore(VectorStore):
         self,
         db_path: str | Path,
         dimension: int = 384,  # Default for all-MiniLM-L6-v2
-        index_type: str = "flat",  # "flat" for exact search, "ivf" for approximate
+        index_type: str = "ivf",  # "flat" for exact search, "ivf" for approximate
     ):
         """Initialize FAISS + SQLite vector store.
 
@@ -163,6 +167,7 @@ class FAISSSQLiteVectorStore(VectorStore):
 
         # Create vectors table
         # Store embedding as BLOB (numpy array serialized)
+        # Use faiss_id as stable external ID (INTEGER, unique) instead of faiss_index
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS vectors (
@@ -173,7 +178,7 @@ class FAISSSQLiteVectorStore(VectorStore):
                 text TEXT NOT NULL,
                 embedding BLOB NOT NULL,
                 metadata TEXT,
-                faiss_index INTEGER NOT NULL,
+                faiss_id INTEGER UNIQUE NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -182,25 +187,40 @@ class FAISSSQLiteVectorStore(VectorStore):
         # Create indexes for faster lookups
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_asset_id ON vectors(asset_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_project_id ON vectors(project_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_faiss_index ON vectors(faiss_index)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_faiss_id ON vectors(faiss_id)")
+
+        # Migration: if old faiss_index column exists, migrate to faiss_id
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vectors'")
+        if cursor.fetchone():
+            # Check if old column exists
+            cursor.execute("PRAGMA table_info(vectors)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "faiss_index" in columns and "faiss_id" not in columns:
+                # Migrate: rename faiss_index to faiss_id
+                cursor.execute("ALTER TABLE vectors RENAME COLUMN faiss_index TO faiss_id")
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_faiss_id ON vectors(faiss_id)")
 
         conn.commit()
         conn.close()
 
     def _init_faiss_index(self) -> None:
-        """Initialize FAISS index."""
+        """Initialize FAISS index with ID mapping for stable external IDs."""
+        # Create base index
         if self.index_type == "flat":
             # Flat index for exact search (L2 distance)
-            self.index = faiss.IndexFlatL2(self.dimension)
+            base_index = faiss.IndexFlatL2(self.dimension)
         elif self.index_type == "ivf":
             # IVF index for approximate search (faster for large datasets)
             quantizer = faiss.IndexFlatL2(self.dimension)
             # Use 100 clusters (adjust based on dataset size)
             nlist = 100
-            self.index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
-            self.index.nprobe = 10  # Number of clusters to search
+            base_index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
+            base_index.nprobe = 10  # Number of clusters to search
         else:
             raise ValueError(f"Unknown index type: {self.index_type}")
+
+        # Wrap with IndexIDMap to use stable external IDs
+        self.index = faiss.IndexIDMap(base_index)
 
         # Load existing vectors from database
         self._load_vectors_from_db()
@@ -217,9 +237,9 @@ class FAISSSQLiteVectorStore(VectorStore):
 
         cursor.execute(
             """
-            SELECT embedding, faiss_index
+            SELECT id, embedding, faiss_id
             FROM vectors
-            ORDER BY faiss_index
+            ORDER BY faiss_id
             """
         )
         rows = cursor.fetchall()
@@ -228,31 +248,36 @@ class FAISSSQLiteVectorStore(VectorStore):
             conn.close()
             return
 
-        # Reconstruct FAISS index from stored embeddings
+        # Reconstruct FAISS index from stored embeddings with stable IDs
         vectors = []
-        for embedding_blob, _ in rows:
+        faiss_ids = []
+        for vector_id, embedding_blob, faiss_id in rows:
             # Deserialize numpy array from BLOB
             embedding = np.frombuffer(embedding_blob, dtype=np.float32)
             vectors.append(embedding)
+            faiss_ids.append(int(faiss_id))
 
         if vectors:
             vectors_array = np.array(vectors, dtype=np.float32)
+            faiss_ids_array = np.array(faiss_ids, dtype=np.int64)
 
-            # Reinitialize FAISS index
+            # Reinitialize FAISS index with ID mapping
             if self.index_type == "flat":
-                self.index = faiss.IndexFlatL2(self.dimension)
+                base_index = faiss.IndexFlatL2(self.dimension)
             elif self.index_type == "ivf":
                 quantizer = faiss.IndexFlatL2(self.dimension)
                 nlist = 100
-                self.index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
-                self.index.nprobe = 10
+                base_index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
+                base_index.nprobe = 10
+
+            self.index = faiss.IndexIDMap(base_index)
 
             # Train IVF index if needed
             if self.index_type == "ivf" and not self.index.is_trained:
                 self.index.train(vectors_array)
 
-            # Add vectors to index
-            self.index.add(vectors_array)
+            # Add vectors with stable external IDs
+            self.index.add_with_ids(vectors_array, faiss_ids_array)
 
             # Save index to disk
             self._save_faiss_index()
@@ -272,9 +297,28 @@ class FAISSSQLiteVectorStore(VectorStore):
         """
         index_path = self.db_path.parent / f"{self.db_path.stem}.faiss"
         if index_path.exists():
+            print(f"Loading FAISS index from {index_path}")
             self.index = faiss.read_index(str(index_path))
             return True
         return False
+
+    def _get_next_faiss_id(self) -> int:
+        """Get the next available FAISS ID.
+
+        Returns:
+            int: Next available FAISS ID
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        try:
+            # Get the maximum faiss_id from database
+            cursor.execute("SELECT MAX(faiss_id) FROM vectors")
+            result = cursor.fetchone()
+            max_id = result[0] if result[0] is not None else -1
+            return max_id + 1
+        finally:
+            conn.close()
 
     def add_documents(self, documents: List[VectorDocument]) -> None:
         """Add documents to the vector store.
@@ -301,18 +345,20 @@ class FAISSSQLiteVectorStore(VectorStore):
                     f"Embedding dimension mismatch: expected {self.dimension}, " f"got {vectors.shape[1]}"
                 )
 
-            # Get current FAISS index size (this will be the starting index for new vectors)
-            start_idx = self.index.ntotal
+            # Generate stable external IDs for new vectors
+            start_id = self._get_next_faiss_id()
+            faiss_ids = np.array([start_id + i for i in range(len(documents))], dtype=np.int64)
 
-            # Add vectors to FAISS index
+            # Train IVF index if needed (before adding vectors)
             if self.index_type == "ivf" and not self.index.is_trained:
-                # Train IVF index if not trained
                 self.index.train(vectors)
-            self.index.add(vectors)
 
-            # Insert metadata and embeddings into SQLite
+            # Add vectors with stable external IDs
+            self.index.add_with_ids(vectors, faiss_ids)
+
+            # Insert metadata and embeddings into SQLite with stable faiss_id
             for i, doc in enumerate(documents):
-                faiss_index = start_idx + i
+                faiss_id = int(faiss_ids[i])
                 metadata_json = json.dumps(doc.metadata) if doc.metadata else None
 
                 # Serialize embedding as numpy array BLOB
@@ -321,7 +367,7 @@ class FAISSSQLiteVectorStore(VectorStore):
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO vectors
-                    (id, asset_id, project_id, chunk_index, text, embedding, metadata, faiss_index)
+                    (id, asset_id, project_id, chunk_index, text, embedding, metadata, faiss_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -332,7 +378,7 @@ class FAISSSQLiteVectorStore(VectorStore):
                         doc.text,
                         embedding_blob,
                         metadata_json,
-                        faiss_index,
+                        faiss_id,
                     ),
                 )
 
@@ -369,6 +415,7 @@ class FAISSSQLiteVectorStore(VectorStore):
             VectorStoreError: If search fails
         """
         if self.index.ntotal == 0:
+            logger.info("No vectors in index")
             return []
 
         # Convert query to numpy array
@@ -384,23 +431,26 @@ class FAISSSQLiteVectorStore(VectorStore):
         k = min(top_k * 3, self.index.ntotal)  # Get more results for filtering
         distances, indices = self.index.search(query_vector, k)
 
+        # Filter out invalid IDs (-1) from FAISS results
+        # FAISS returns -1 for invalid IDs when k > ntotal or when there aren't enough results
+        # With IndexIDMap, these are now stable external IDs, not ordinal indices
+        valid_faiss_ids = [int(faiss_id) for faiss_id in indices[0] if faiss_id >= 0]
         # Get metadata from SQLite
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         try:
-            if len(indices[0]) == 0:
+            if len(valid_faiss_ids) == 0:
                 return []
 
-            # Build query with optional filters
+            # Build query with optional filters using stable faiss_id
             query = """
-                SELECT id, asset_id, project_id, chunk_index, text, metadata, faiss_index
+                SELECT id, asset_id, project_id, chunk_index, text, metadata, faiss_id
                 FROM vectors
-                WHERE faiss_index IN ({})
-            """.format(",".join("?" * len(indices[0])))
+                WHERE faiss_id IN ({})
+            """.format(",".join("?" * len(valid_faiss_ids)))
 
-            params = list(indices[0])
-
+            params = list(valid_faiss_ids)
             # Add filters
             if project_id:
                 query += " AND project_id = ?"
@@ -411,13 +461,12 @@ class FAISSSQLiteVectorStore(VectorStore):
 
             cursor.execute(query, params)
             rows = cursor.fetchall()
-
-            # Create a mapping from faiss_index to document data
+            # Create a mapping from faiss_id to document data
             doc_map = {}
             for row in rows:
-                vector_id, asset_id_str, project_id_str, chunk_index, text, metadata_json, faiss_idx = row
+                vector_id, asset_id_str, project_id_str, chunk_index, text, metadata_json, faiss_id = row
                 metadata = json.loads(metadata_json) if metadata_json else None
-                doc_map[faiss_idx] = {
+                doc_map[int(faiss_id)] = {
                     "id": vector_id,
                     "asset_id": UUID(asset_id_str),
                     "project_id": UUID(project_id_str),
@@ -428,14 +477,18 @@ class FAISSSQLiteVectorStore(VectorStore):
 
             # Build results with scores
             results = []
-            for i, faiss_idx in enumerate(indices[0]):
-                if faiss_idx in doc_map:
+            for i, faiss_id in enumerate(indices[0]):
+                # Skip invalid IDs
+                if faiss_id < 0:
+                    continue
+
+                if faiss_id in doc_map:
                     # FAISS returns L2 distance (lower is better), convert to similarity score
                     distance = float(distances[0][i])
                     # Convert distance to similarity (1 / (1 + distance))
                     score = 1.0 / (1.0 + distance)
 
-                    doc_data = doc_map[faiss_idx]
+                    doc_data = doc_map[faiss_id]
                     document = VectorDocument(
                         id=doc_data["id"],
                         asset_id=doc_data["asset_id"],
@@ -472,12 +525,12 @@ class FAISSSQLiteVectorStore(VectorStore):
         cursor = conn.cursor()
 
         try:
-            # Get FAISS indices to remove
-            cursor.execute("SELECT faiss_index FROM vectors WHERE asset_id = ?", (str(asset_id),))
+            # Get FAISS IDs to remove (for reference, though we'll rebuild anyway)
+            cursor.execute("SELECT faiss_id FROM vectors WHERE asset_id = ?", (str(asset_id),))
             rows = cursor.fetchall()
-            faiss_indices = [row[0] for row in rows]
+            faiss_ids = [row[0] for row in rows]
 
-            if not faiss_indices:
+            if not faiss_ids:
                 conn.close()
                 return
 
@@ -534,55 +587,49 @@ class FAISSSQLiteVectorStore(VectorStore):
 
         cursor.execute(
             """
-            SELECT embedding, id
+            SELECT embedding, faiss_id
             FROM vectors
-            ORDER BY id
+            ORDER BY faiss_id
             """
         )
         rows = cursor.fetchall()
         conn.close()
 
-        # Reinitialize FAISS index
+        # Reinitialize FAISS index with ID mapping
         if self.index_type == "flat":
-            self.index = faiss.IndexFlatL2(self.dimension)
+            base_index = faiss.IndexFlatL2(self.dimension)
         elif self.index_type == "ivf":
             quantizer = faiss.IndexFlatL2(self.dimension)
             nlist = 100
-            self.index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
-            self.index.nprobe = 10
+            base_index = faiss.IndexIVFFlat(quantizer, self.dimension, nlist)
+            base_index.nprobe = 10
+
+        self.index = faiss.IndexIDMap(base_index)
 
         if not rows:
             # No vectors to rebuild
             self._save_faiss_index()
             return
 
-        # Rebuild vectors array from stored embeddings
+        # Rebuild vectors array from stored embeddings with stable IDs
         vectors = []
-        for embedding_blob, vector_id in rows:
+        faiss_ids = []
+        for embedding_blob, faiss_id in rows:
             # Deserialize numpy array from BLOB
             embedding = np.frombuffer(embedding_blob, dtype=np.float32)
             vectors.append(embedding)
+            faiss_ids.append(int(faiss_id))
 
         if vectors:
             vectors_array = np.array(vectors, dtype=np.float32)
+            faiss_ids_array = np.array(faiss_ids, dtype=np.int64)
 
             # Train IVF index if needed
             if self.index_type == "ivf" and not self.index.is_trained:
                 self.index.train(vectors_array)
 
-            # Add vectors to index
-            self.index.add(vectors_array)
-
-            # Update faiss_index in database to reflect new indices
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            for i, (embedding_blob, vector_id) in enumerate(rows):
-                cursor.execute(
-                    "UPDATE vectors SET faiss_index = ? WHERE id = ?",
-                    (i, vector_id),
-                )
-            conn.commit()
-            conn.close()
+            # Add vectors with stable external IDs (preserve existing faiss_id values)
+            self.index.add_with_ids(vectors_array, faiss_ids_array)
 
         self._save_faiss_index()
 
