@@ -138,7 +138,7 @@ class FAISSSQLiteVectorStore(VectorStore):
         self,
         db_path: str | Path,
         dimension: int = 384,  # Default for all-MiniLM-L6-v2
-        index_type: str = "ivf",  # "flat" for exact search, "ivf" for approximate
+        index_type: str = "flat",  # "flat" for exact search, "ivf" for approximate
     ):
         """Initialize FAISS + SQLite vector store.
 
