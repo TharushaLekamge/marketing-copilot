@@ -807,3 +807,207 @@ def test__create_asset_with_file_too_large__returns_422(test_client: TestClient,
 
     assert response.status_code == 422
     assert "size" in response.json()["detail"].lower()
+
+
+@patch("backend.routers.assets._ingest_asset_background")
+@patch("backend.routers.assets.get_storage")
+def test__ingest_asset__returns_202_and_starts_ingestion(
+    mock_get_storage: MagicMock,
+    mock_ingest_background: MagicMock,
+    test_client: TestClient,
+    create_user,
+    test_db_session,
+):
+    """Test successful ingestion start."""
+    # Setup mock storage
+    mock_storage = MagicMock()
+    mock_storage.save.return_value = "test/path/to/file.pdf"
+    mock_get_storage.return_value = mock_storage
+
+    user, token = create_user(
+        email="ingestuser@example.com",
+        password="testpassword123",
+        name="Ingest User",
+    )
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    # Create asset
+    asset = Asset(
+        project_id=project.id,
+        filename="test-document.pdf",
+        content_type="application/pdf",
+        ingested=False,
+        ingesting=False,
+    )
+    test_db_session.add(asset)
+    test_db_session.commit()
+    test_db_session.refresh(asset)
+
+    response = test_client.post(
+        f"/api/projects/{project.id}/assets/{asset.id}/ingest",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 202
+    data = response.json()
+    assert data["message"] == "Ingestion started"
+    assert data["asset_id"] == str(asset.id)
+    assert data["ingesting"] is True
+
+    # Verify background task was added
+    mock_ingest_background.assert_called_once_with(asset.id, project.id)
+
+
+def test__ingest_asset_with_nonexistent_project__returns_404(test_client: TestClient, create_user):
+    """Test ingestion with non-existent project returns 404."""
+    user, token = create_user(
+        email="ingestprojectnotfound@example.com",
+        password="testpassword123",
+        name="Ingest Project Not Found User",
+    )
+
+    response = test_client.post(
+        "/api/projects/00000000-0000-0000-0000-000000000000/assets/00000000-0000-0000-0000-000000000000/ingest",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+
+def test__ingest_asset_with_nonexistent_asset__returns_404(test_client: TestClient, create_user, test_db_session):
+    """Test ingestion with non-existent asset returns 404."""
+    user, token = create_user(
+        email="ingestassetnotfound@example.com",
+        password="testpassword123",
+        name="Ingest Asset Not Found User",
+    )
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    response = test_client.post(
+        f"/api/projects/{project.id}/assets/00000000-0000-0000-0000-000000000000/ingest",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Asset not found"
+
+
+def test__ingest_asset_already_ingesting__returns_409(test_client: TestClient, create_user, test_db_session):
+    """Test ingestion when asset is already being ingested returns 409."""
+    user, token = create_user(
+        email="alreadyingesting@example.com",
+        password="testpassword123",
+        name="Already Ingesting User",
+    )
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    # Create asset with ingesting=True
+    asset = Asset(
+        project_id=project.id,
+        filename="test-document.pdf",
+        content_type="application/pdf",
+        ingested=False,
+        ingesting=True,  # Already ingesting
+    )
+    test_db_session.add(asset)
+    test_db_session.commit()
+    test_db_session.refresh(asset)
+
+    response = test_client.post(
+        f"/api/projects/{project.id}/assets/{asset.id}/ingest",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 409
+    assert "already being ingested" in response.json()["detail"].lower()
+
+
+def test__ingest_asset_without_auth__returns_403(test_client: TestClient, test_db_session):
+    """Test ingestion without authentication returns 403."""
+    from backend.core.security import hash_password
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    user = User(
+        id=uuid4(),
+        email="unauthingest@example.com",
+        password_hash=hash_password("testpassword123"),
+        name="Unauth Ingest User",
+        created_at=datetime.now(timezone.utc),
+    )
+    test_db_session.add(user)
+    test_db_session.commit()
+    test_db_session.refresh(user)
+
+    project = Project(owner_id=user.id, name="Test Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    asset = Asset(
+        project_id=project.id,
+        filename="test-document.pdf",
+        content_type="application/pdf",
+        ingested=False,
+        ingesting=False,
+    )
+    test_db_session.add(asset)
+    test_db_session.commit()
+    test_db_session.refresh(asset)
+
+    response = test_client.post(
+        f"/api/projects/{project.id}/assets/{asset.id}/ingest",
+    )
+
+    assert response.status_code == 403
+
+
+def test__ingest_asset_in_other_user_project__returns_404(test_client: TestClient, create_user, test_db_session):
+    """Test ingestion in another user's project returns 404."""
+    user1, _ = create_user(
+        email="owner2@example.com",
+        password="testpassword123",
+        name="Owner 2",
+    )
+    user2, token2 = create_user(
+        email="other2@example.com",
+        password="testpassword123",
+        name="Other User 2",
+    )
+
+    project = Project(owner_id=user1.id, name="Owner's Project")
+    test_db_session.add(project)
+    test_db_session.commit()
+    test_db_session.refresh(project)
+
+    asset = Asset(
+        project_id=project.id,
+        filename="test-document.pdf",
+        content_type="application/pdf",
+        ingested=False,
+        ingesting=False,
+    )
+    test_db_session.add(asset)
+    test_db_session.commit()
+    test_db_session.refresh(asset)
+
+    response = test_client.post(
+        f"/api/projects/{project.id}/assets/{asset.id}/ingest",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
