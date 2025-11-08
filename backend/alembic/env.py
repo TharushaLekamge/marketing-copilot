@@ -17,7 +17,7 @@ import os
 
 from backend.config import settings
 from backend.database import Base
-from backend.models import Asset, Project, User  # noqa: F401
+from backend.models import Asset, GenerationRecord, Project, User  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
