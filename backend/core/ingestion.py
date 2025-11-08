@@ -53,6 +53,16 @@ def ingest_asset(asset_id: UUID, project_id: UUID, db: Session) -> None:
         logger.error(f"Asset {asset_id} not found in project {project_id}")
         raise IngestionError(f"Asset {asset_id} not found in project {project_id}")
 
+    # Check if already ingesting
+    if asset.ingesting:
+        logger.warning(f"Asset {asset_id} is already being ingested")
+        raise IngestionError(f"Asset {asset_id} is already being ingested")
+
+    # Set ingesting status and commit immediately to lock the asset
+    asset.ingesting = True
+    db.commit()
+    logger.info(f"Set ingesting status for asset {asset_id}")
+
     # Check if already ingested
     if asset.ingested:
         logger.warning(f"Asset {asset_id} already ingested, re-ingesting (deleting existing vectors)")
@@ -148,6 +158,7 @@ def ingest_asset(asset_id: UUID, project_id: UUID, db: Session) -> None:
 
         # Step 7: Update asset ingestion status
         asset.ingested = True
+        asset.ingesting = False
         # Update metadata with ingestion info
         if asset.asset_metadata is None:
             asset.asset_metadata = {}
@@ -162,8 +173,22 @@ def ingest_asset(asset_id: UUID, project_id: UUID, db: Session) -> None:
 
     except IngestionError:
         # Re-raise ingestion errors (already logged)
+        # Reset ingesting status on error
+        try:
+            asset.ingesting = False
+            db.commit()
+        except Exception:
+            # If commit fails, rollback
+            db.rollback()
         raise
     except Exception as e:
         # Wrap unexpected errors
         logger.exception(f"Unexpected error during ingestion of asset {asset_id}")
+        # Reset ingesting status on error
+        try:
+            asset.ingesting = False
+            db.commit()
+        except Exception:
+            # If commit fails, rollback
+            db.rollback()
         raise IngestionError(f"Unexpected error during ingestion: {e}") from e
