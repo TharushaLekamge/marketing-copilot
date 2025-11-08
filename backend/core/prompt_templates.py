@@ -16,8 +16,8 @@ def get_content_generation_system_prompt(
     Returns:
         str: System prompt for content generation
     """
-    base_prompt = """You are a helpful marketing copy assistant. Your role is to create engaging, 
-effective marketing content that aligns with brand guidelines and resonates with target audiences.
+    base_prompt = """You are a helpful marketing copy assistant. Your role is to create engaging,
+ effective marketing content that aligns with brand guidelines and resonates with target audiences.
 
 Guidelines:
 - Write in a clear, professional, and engaging tone
