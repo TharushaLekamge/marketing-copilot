@@ -97,6 +97,19 @@ All asset endpoints require authentication via Bearer token in the Authorization
   - Returns `404 Not Found` if asset, project, or file doesn't exist or user doesn't own the project
   - Requires authentication
 
+- **POST** `/api/projects/{project_id}/assets/{asset_id}/ingest` - Start ingestion of an asset
+  - Response: `202 Accepted` with `{ "message": "Ingestion started", "asset_id": "...", "ingesting": true }`
+  - Returns `404 Not Found` if asset or project doesn't exist or user doesn't own the project
+  - Returns `409 Conflict` if asset is already being ingested
+  - Requires authentication
+  - Ingestion runs asynchronously in the background and includes:
+    1. Extracting text from the file (PDF, DOCX, TXT, MD)
+    2. Chunking the text into smaller pieces
+    3. Generating embeddings for each chunk
+    4. Storing vectors in the vector store
+  - The `ingesting` field on the asset tracks ingestion status
+  - Check asset status via GET endpoint to see when ingestion completes
+
 ### Health Check
 
 - **GET** `/health` - Application health check
@@ -106,6 +119,125 @@ All asset endpoints require authentication via Bearer token in the Authorization
 
 - **GET** `/docs` - Interactive API documentation (Swagger UI)
 - **GET** `/redoc` - Alternative API documentation (ReDoc)
+
+## Using the Frontend
+
+The Marketing Copilot frontend provides a web-based interface for managing projects and assets. Access the frontend at `http://localhost:3000` after starting the development server.
+
+### Getting Started
+
+1. **Start the Backend**: Ensure the backend is running on `http://localhost:8000`
+2. **Start the Frontend**: Navigate to the frontend directory and run `npm run dev`
+3. **Access the Application**: Open `http://localhost:3000` in your browser
+
+### Authentication
+
+#### Sign Up
+1. Navigate to the signup page (`/signup`)
+2. Enter your email, password (minimum 8 characters), and name
+3. Click "Sign Up" to create your account
+4. You'll be automatically logged in after successful signup
+
+#### Login
+1. Navigate to the login page (`/login`)
+2. Enter your email and password
+3. Click "Login" to authenticate
+4. You'll be redirected to your projects dashboard
+
+#### Logout
+- Click the "Logout" button in the header to sign out
+- You'll be redirected to the login page
+
+### Managing Projects
+
+#### View All Projects
+- After logging in, you'll see the **Projects** page listing all your projects
+- Each project card displays:
+  - Project name and description
+  - Creation and update dates
+  - Actions: View, Edit, Delete
+
+#### Create a New Project
+1. Click the **"New Project"** button on the projects page
+2. Enter a project name (required)
+3. Optionally add a description
+4. Click **"Create Project"** to save
+5. You'll be redirected to the project detail page
+
+#### View Project Details
+1. Click on a project card or the **"View"** button
+2. The project detail page shows:
+   - Project name and description
+   - Creation and update timestamps
+   - All assets associated with the project
+   - Edit and delete options
+
+#### Edit a Project
+1. From the project detail page, click **"Edit Project"**
+2. Update the project name and/or description
+3. Click **"Save Changes"** to update
+4. Or click **"Cancel"** to discard changes
+
+#### Delete a Project
+1. From the projects list page, click **"Delete"** on a project card
+2. Confirm the deletion in the dialog
+3. The project and all its assets will be permanently deleted
+
+### Managing Assets
+
+#### Upload an Asset
+1. Navigate to a project detail page
+2. Click the **"Upload File"** button
+3. Select a file from your computer
+4. Supported file types include:
+   - Documents: PDF, DOCX, TXT, MD
+   - Images: JPG, PNG, GIF, etc.
+   - Other common file types
+5. The file will be uploaded and appear in the assets table
+6. Maximum file size: 100MB
+
+#### View Assets
+- On the project detail page, all assets are displayed in a table showing:
+  - File icon and name
+  - Content type (MIME type)
+  - Ingestion status (Ingested/Pending)
+  - Upload date
+  - Actions (Download, Delete)
+
+#### Download an Asset
+1. On the project detail page, find the asset in the table
+2. Click the **"Download"** button
+3. The file will be downloaded to your computer
+
+#### Delete an Asset
+1. On the project detail page, find the asset in the table
+2. Click the **"Delete"** button
+3. Confirm the deletion in the dialog
+4. The asset and its file will be permanently deleted
+
+### Asset Ingestion Status
+
+- **Pending**: Asset has been uploaded but not yet ingested
+- **Ingested**: Asset has been processed and is ready for use in content generation and RAG queries
+
+> **Note**: The ingestion endpoint is available via the API (`POST /api/projects/{project_id}/assets/{asset_id}/ingest`). Frontend integration for triggering ingestion will be available in a future update.
+
+### Navigation
+
+- **Home**: Redirects to projects page if logged in, or login page if not
+- **Projects**: View all your projects
+- **Project Detail**: View and manage a specific project and its assets
+- **Header**: Shows your email and logout button
+
+### Error Handling
+
+The frontend displays error messages for:
+- Authentication failures
+- Network errors
+- Validation errors (e.g., missing required fields)
+- File upload errors (e.g., file too large, invalid type)
+
+Error messages appear as red alert boxes at the top of the relevant page.
 
 ## Development Environment Setup
 
