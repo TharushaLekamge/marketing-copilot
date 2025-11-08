@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from backend.core.chunking import chunk_text
+from backend.core.document_processor import DocumentProcessingError
 from backend.core.document_processing import (
-    DocumentProcessingError,
     extract_text_from_file,
     normalize_text,
 )
@@ -80,7 +80,7 @@ def ingest_asset(asset_id: UUID, project_id: UUID, db: Session) -> None:
         try:
             file_content = storage.read(project_id, asset_id, asset.filename)
         except FileNotFoundError as e:
-            raise IngestionError(f"File not found in storage: {e}") from e
+            raise IngestionError(f"File not found in storage") from e
         except StorageError as e:
             raise IngestionError(f"Failed to read file from storage: {e}") from e
 

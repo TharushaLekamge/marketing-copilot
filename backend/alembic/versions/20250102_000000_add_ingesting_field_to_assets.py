@@ -26,4 +26,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Remove ingesting column from assets table
     op.drop_column("assets", "ingesting")
-
