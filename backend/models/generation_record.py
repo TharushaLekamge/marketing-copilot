@@ -45,4 +45,3 @@ class GenerationRecord(Base):
     def __repr__(self) -> str:
         """String representation of GenerationRecord."""
         return f"<GenerationRecord(id={self.id}, project_id={self.project_id}, user_id={self.user_id}, model={self.model})>"
-
