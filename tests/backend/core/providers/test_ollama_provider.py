@@ -1,6 +1,5 @@
 """Unit tests for Ollama LLM provider."""
 
-import asyncio
 import json
 import logging
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -12,70 +11,6 @@ from backend.core.llm_provider import LLMConfig, LLMProviderError
 from backend.core.providers.ollama_provider import OllamaProvider
 
 logger = logging.getLogger(__name__)
-
-class MockStreamResponse:
-    """
-    Emulates the response object returned from client.stream(...)
-    - raise_for_status() is available
-    - aiter_lines() is an async generator yielding lines (strings)
-    """
-
-    def __init__(self, lines):
-        # `lines` should be an iterable of strings
-        self._lines = lines
-        self._closed = False
-
-    def raise_for_status(self):
-        # No-op for success case
-        return None
-
-    async def aiter_lines(self):
-        # emulate streaming line-by-line
-        for line in self._lines:
-            # simulate small delay between chunks like a real stream
-            await asyncio.sleep(0)
-            yield line
-
-    async def aclose(self):
-        self._closed = True
-
-
-class MockStreamContext:
-    """
-    Async context manager returned by MockClient.stream
-    """
-
-    def __init__(self, response: MockStreamResponse, raise_on_enter: Exception = None):
-        self._response = response
-        self._raise_on_enter = raise_on_enter
-
-    async def __aenter__(self):
-        if self._raise_on_enter:
-            raise self._raise_on_enter
-        return self._response
-
-    async def __aexit__(self, exc_type, exc, tb):
-        # close/cleanup if needed
-        if hasattr(self._response, "aclose"):
-            await self._response.aclose()
-        return False  # don't swallow exceptions
-        
-
-class MockClient:
-    """
-    Mock client that exposes .stream(method, path, json=...) -> async context manager
-    """
-
-    def __init__(self, *, response_lines=None, raise_on_enter: Exception = None):
-        self.response_lines = response_lines or []
-        self.raise_on_enter = raise_on_enter
-        self.last_stream_args = None  # capture call args
-
-    def stream(self, method, path, **kwargs):
-        # capture call
-        self.last_stream_args = (method, path, kwargs)
-        response = MockStreamResponse(self.response_lines)
-        return MockStreamContext(response, raise_on_enter=self.raise_on_enter)
 
 
 @pytest.fixture
@@ -349,13 +284,14 @@ class TestOllamaProviderGenerateStream:
         mock_get_encoding: MagicMock,
         mock_tokenizer: MagicMock,
         mock_stream_lines: list,
+        mock_client_factory,
     ):
         """Test successful streaming generation."""
         mock_get_encoding.return_value = mock_tokenizer
 
-        # Use MockClient to patch provider.client
-        mock_client = MockClient(response_lines=mock_stream_lines)
-        
+        # Use MockClient fixture to patch provider.client
+        mock_client = mock_client_factory(response_lines=mock_stream_lines)
+
         provider = OllamaProvider(model="test-model")
         provider._client = mock_client
 
@@ -378,13 +314,14 @@ class TestOllamaProviderGenerateStream:
         self,
         mock_get_encoding: MagicMock,
         mock_tokenizer: MagicMock,
+        mock_client_factory,
     ):
         """Test streaming with HTTP error."""
         mock_get_encoding.return_value = mock_tokenizer
 
-        # Use MockClient with raise_on_enter to simulate HTTP error
-        mock_client = MockClient(raise_on_enter=httpx.HTTPError("Connection error"))
-        
+        # Use MockClient fixture with raise_on_enter to simulate HTTP error
+        mock_client = mock_client_factory(raise_on_enter=httpx.HTTPError("Connection error"))
+
         provider = OllamaProvider(model="test-model")
         provider._client = mock_client
 
@@ -398,6 +335,7 @@ class TestOllamaProviderGenerateStream:
         self,
         mock_get_encoding: MagicMock,
         mock_tokenizer: MagicMock,
+        mock_client_factory,
     ):
         """Test streaming skips invalid JSON lines."""
         mock_get_encoding.return_value = mock_tokenizer
@@ -408,9 +346,9 @@ class TestOllamaProviderGenerateStream:
             json.dumps({"response": " world", "done": True}),
         ]
 
-        # Use MockClient to patch provider.client
-        mock_client = MockClient(response_lines=mock_stream_lines)
-        
+        # Use MockClient fixture to patch provider.client
+        mock_client = mock_client_factory(response_lines=mock_stream_lines)
+
         provider = OllamaProvider(model="test-model")
         provider._client = mock_client
 
