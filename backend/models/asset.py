@@ -25,6 +25,7 @@ class Asset(Base):
     filename = Column(String(255), nullable=False)
     content_type = Column(String(100), nullable=False)
     ingested = Column(Boolean, default=False, nullable=False)
+    ingesting = Column(Boolean, default=False, nullable=False)
     asset_metadata = Column(JSONB, nullable=True)
     created_at = Column(
         DateTime(timezone=True),

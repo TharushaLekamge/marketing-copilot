@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.core.dependencies import get_current_user
 from backend.core.file_processing import FileValidationError, validate_file
 from backend.core.storage import FileNotFoundError, StorageError, get_storage
+from backend.core.vector_store import VectorStoreError, get_vector_store
 from backend.database import get_db
 from backend.models.asset import Asset
 from backend.models.project import Project
@@ -81,6 +82,7 @@ async def create_asset(
         filename=file.filename.strip(),
         content_type=file.content_type or "application/octet-stream",
         ingested=False,
+        ingesting=False,
         asset_metadata=None,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -277,6 +279,13 @@ async def update_asset(
             detail="Asset not found",
         )
 
+    # Check if asset is currently being ingested
+    if asset.ingesting:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Asset is currently being ingested and cannot be updated",
+        )
+
     # Update fields - handle the metadata -> asset_metadata mapping
     update_data = asset_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -326,6 +335,23 @@ async def delete_asset(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Asset not found",
         )
+
+    # Check if asset is currently being ingested
+    if asset.ingesting:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Asset is currently being ingested and cannot be deleted",
+        )
+
+    # Delete vectors from vector store if asset was ingested
+    if asset.ingested:
+        try:
+            vector_store = get_vector_store()
+            vector_store.delete_by_asset(asset_id)
+        except VectorStoreError:
+            # Log error but continue with deletion
+            # In production, you might want to handle this differently
+            pass
 
     # Delete file from storage
     try:

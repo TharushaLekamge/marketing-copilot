@@ -66,6 +66,7 @@ class AssetResponse(BaseModel):
     filename: str = Field(..., description="Name of the file")
     content_type: str = Field(..., description="MIME type of the file")
     ingested: bool = Field(..., description="Whether the asset has been ingested")
+    ingesting: bool = Field(..., description="Whether the asset is currently being ingested")
     asset_metadata: Optional[dict] = Field(None, description="Metadata for the asset")
     created_at: datetime = Field(..., description="Timestamp when the asset was created")
     updated_at: datetime = Field(..., description="Timestamp when the asset was last updated")
