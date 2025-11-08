@@ -253,7 +253,7 @@ class TestOllamaProviderGenerateAsync:
                 "eval_duration": 700000000,
             }
         )
-        
+
         provider = OllamaProvider(model="test-model")
         provider._client = mock_client
 
@@ -286,7 +286,7 @@ class TestOllamaProviderGenerateAsync:
 
         # Use MockClient fixture with post_error to simulate HTTP error
         mock_client = mock_client_factory(post_error=httpx.HTTPError("Connection error"))
-        
+
         provider = OllamaProvider(model="test-model")
         provider._client = mock_client
 

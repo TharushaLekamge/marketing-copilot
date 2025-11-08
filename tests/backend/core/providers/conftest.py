@@ -109,11 +109,11 @@ class MockClient:
         """Mock async POST method."""
         # capture call
         self.last_post_args = (path, kwargs)
-        
+
         # Raise error if configured
         if self.post_error:
             raise self.post_error
-        
+
         # Return mock response with JSON data
         return MockAsyncResponse(self.post_response or {}, raise_on_status=None)
 
@@ -121,20 +121,20 @@ class MockClient:
 @pytest.fixture
 def mock_client_factory():
     """Factory fixture for creating MockClient instances.
-    
+
     Returns:
         A function that creates MockClient instances with specified parameters.
-        
+
     Example:
         ```python
         # For streaming tests
         mock_client = mock_client_factory(response_lines=["line1", "line2"])
-        
+
         # For async POST tests
         mock_client = mock_client_factory(
             post_response={"response": "Hello", "done": True}
         )
-        
+
         # For error cases
         mock_client = mock_client_factory(
             post_error=httpx.HTTPError("Connection error")
@@ -149,13 +149,13 @@ def mock_client_factory():
         post_error: Optional[Exception] = None,
     ) -> MockClient:
         """Create a MockClient instance.
-        
+
         Args:
             response_lines: List of strings to return from stream
             raise_on_enter: Exception to raise when entering stream context manager
             post_response: JSON data to return from async POST calls
             post_error: Exception to raise from async POST calls
-            
+
         Returns:
             MockClient instance
         """
@@ -165,5 +165,5 @@ def mock_client_factory():
             post_response=post_response,
             post_error=post_error,
         )
-    
+
     return _create_mock_client
