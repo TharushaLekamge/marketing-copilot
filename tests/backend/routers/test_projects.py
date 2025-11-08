@@ -1,7 +1,6 @@
 """Tests for projects router."""
 
 from backend.models.project import Project
-from backend.models.user import User
 from fastapi.testclient import TestClient
 
 

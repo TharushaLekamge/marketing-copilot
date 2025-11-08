@@ -39,7 +39,7 @@ def get_token_count(text: str, encoding_name: str = ENCODING_NAME) -> int:
     try:
         encoding = tiktoken.get_encoding(encoding_name)
         return len(encoding.encode(text))
-    except Exception as e:
+    except Exception:
         # Fallback to approximate token count (roughly 4 characters per token)
         return len(text) // 4
 

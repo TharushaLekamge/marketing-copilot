@@ -1,9 +1,8 @@
 """Tests for authentication router."""
 
-import os
-from datetime import datetime, timezone
+from datetime import datetime
 
-from backend.core.security import decode_access_token, hash_password, verify_password
+from backend.core.security import decode_access_token, verify_password
 from backend.models.user import User
 from fastapi.testclient import TestClient
 
