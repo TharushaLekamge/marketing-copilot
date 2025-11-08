@@ -5,5 +5,4 @@ tiktoken==0.7.0
 sentence-transformers==3.0.1
 faiss-cpu==1.8.0.post1
 numpy==1.26.4
-semantic-kernel==1.37.0
-
+semantic-kernel[ollama]==1.37.1
