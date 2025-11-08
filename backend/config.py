@@ -41,6 +41,18 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
 
+    # LLM Provider
+    llm_base_url: str = Field(
+        default="http://localhost:11434",
+        description="Base URL for LLM provider (e.g., Ollama)",
+        alias="LLM_BASE_URL",
+    )
+    ollama_model: str = Field(
+        default="qwen3vl:4b",
+        description="Ollama model name to use",
+        alias="OLLAMA_MODEL",
+    )
+
     @field_validator("database_url", mode="before")
     @classmethod
     def validate_database_url(cls, v: str | None) -> str:
