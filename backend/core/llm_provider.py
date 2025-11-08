@@ -192,13 +192,8 @@ class LLMProvider(ABC):
         if config.top_p is not None and (config.top_p < 0 or config.top_p > 1):
             raise ValueError("top_p must be between 0 and 1")
 
-        if config.frequency_penalty is not None and (
-            config.frequency_penalty < -2 or config.frequency_penalty > 2
-        ):
+        if config.frequency_penalty is not None and (config.frequency_penalty < -2 or config.frequency_penalty > 2):
             raise ValueError("frequency_penalty must be between -2 and 2")
 
-        if config.presence_penalty is not None and (
-            config.presence_penalty < -2 or config.presence_penalty > 2
-        ):
+        if config.presence_penalty is not None and (config.presence_penalty < -2 or config.presence_penalty > 2):
             raise ValueError("presence_penalty must be between -2 and 2")
-
