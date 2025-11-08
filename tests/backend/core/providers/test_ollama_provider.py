@@ -234,14 +234,28 @@ class TestOllamaProviderGenerateAsync:
         self,
         mock_get_encoding: MagicMock,
         mock_tokenizer: MagicMock,
-        mock_async_response: AsyncMock,
+        mock_client_factory,
     ):
         """Test successful async text generation."""
         mock_get_encoding.return_value = mock_tokenizer
 
+        # Use MockClient fixture instead of AsyncMock
+        mock_client = mock_client_factory(
+            post_response={
+                "response": "This is an async test response from Ollama.",
+                "done": True,
+                "context": [],
+                "total_duration": 1000000000,
+                "load_duration": 50000000,
+                "prompt_eval_count": 10,
+                "prompt_eval_duration": 200000000,
+                "eval_count": 15,
+                "eval_duration": 700000000,
+            }
+        )
+        
         provider = OllamaProvider(model="test-model")
-        provider._client = AsyncMock()
-        provider._client.post = AsyncMock(return_value=mock_async_response)
+        provider._client = mock_client
 
         response = await provider.generate_async("Test prompt")
 
@@ -252,9 +266,12 @@ class TestOllamaProviderGenerateAsync:
         assert response.total_tokens == 10
 
         # Verify API was called correctly
-        provider._client.post.assert_called_once()
-        call_args = provider._client.post.call_args
-        assert call_args[0][0] == "/api/generate"
+        assert mock_client.last_post_args is not None
+        path, kwargs = mock_client.last_post_args
+        assert path == "/api/generate"
+        assert kwargs["json"]["model"] == "test-model"
+        assert kwargs["json"]["prompt"] == "Test prompt"
+        assert kwargs["json"]["stream"] is False
 
     @pytest.mark.asyncio
     @patch("backend.core.providers.ollama_provider.tiktoken.get_encoding")
@@ -262,13 +279,16 @@ class TestOllamaProviderGenerateAsync:
         self,
         mock_get_encoding: MagicMock,
         mock_tokenizer: MagicMock,
+        mock_client_factory,
     ):
         """Test async generation with HTTP error."""
         mock_get_encoding.return_value = mock_tokenizer
 
+        # Use MockClient fixture with post_error to simulate HTTP error
+        mock_client = mock_client_factory(post_error=httpx.HTTPError("Connection error"))
+        
         provider = OllamaProvider(model="test-model")
-        provider._client = AsyncMock()
-        provider._client.post = AsyncMock(side_effect=httpx.HTTPError("Connection error"))
+        provider._client = mock_client
 
         with pytest.raises(LLMProviderError, match="Failed to generate text"):
             await provider.generate_async("Test prompt")

@@ -1,7 +1,7 @@
 """Pytest fixtures for Ollama provider tests."""
 
 import asyncio
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 import pytest
@@ -58,15 +58,45 @@ class MockStreamContext:
         return False  # don't swallow exceptions
 
 
-class MockClient:
+class MockAsyncResponse:
     """
-    Mock client that exposes .stream(method, path, json=...) -> async context manager
+    Mock response for async POST calls.
     """
 
-    def __init__(self, *, response_lines: Optional[List[str]] = None, raise_on_enter: Optional[Exception] = None):
+    def __init__(self, json_data: Dict[str, Any], raise_on_status: Optional[Exception] = None):
+        self._json_data = json_data
+        self._raise_on_status = raise_on_status
+        self.status_code = 200
+
+    def raise_for_status(self) -> None:
+        """Raise error if configured."""
+        if self._raise_on_status:
+            raise self._raise_on_status
+
+    def json(self) -> Dict[str, Any]:
+        """Return JSON data."""
+        return self._json_data
+
+
+class MockClient:
+    """
+    Mock client that supports both .stream() and .post() methods.
+    """
+
+    def __init__(
+        self,
+        *,
+        response_lines: Optional[List[str]] = None,
+        raise_on_enter: Optional[Exception] = None,
+        post_response: Optional[Dict[str, Any]] = None,
+        post_error: Optional[Exception] = None,
+    ):
         self.response_lines = response_lines or []
         self.raise_on_enter = raise_on_enter
-        self.last_stream_args = None  # capture call args
+        self.post_response = post_response
+        self.post_error = post_error
+        self.last_stream_args: Optional[tuple] = None  # capture stream call args
+        self.last_post_args: Optional[tuple] = None  # capture post call args
 
     def stream(self, method: str, path: str, **kwargs):
         """Mock stream method that returns an async context manager."""
@@ -75,35 +105,65 @@ class MockClient:
         response = MockStreamResponse(self.response_lines)
         return MockStreamContext(response, raise_on_enter=self.raise_on_enter)
 
+    async def post(self, path: str, **kwargs):
+        """Mock async POST method."""
+        # capture call
+        self.last_post_args = (path, kwargs)
+        
+        # Raise error if configured
+        if self.post_error:
+            raise self.post_error
+        
+        # Return mock response with JSON data
+        return MockAsyncResponse(self.post_response or {}, raise_on_status=None)
+
 
 @pytest.fixture
 def mock_client_factory():
     """Factory fixture for creating MockClient instances.
-
+    
     Returns:
         A function that creates MockClient instances with specified parameters.
-
+        
     Example:
         ```python
-        def test_example(mock_client_factory):
-            mock_client = mock_client_factory(response_lines=["line1", "line2"])
-            provider._client = mock_client
+        # For streaming tests
+        mock_client = mock_client_factory(response_lines=["line1", "line2"])
+        
+        # For async POST tests
+        mock_client = mock_client_factory(
+            post_response={"response": "Hello", "done": True}
+        )
+        
+        # For error cases
+        mock_client = mock_client_factory(
+            post_error=httpx.HTTPError("Connection error")
+        )
         ```
     """
 
     def _create_mock_client(
         response_lines: Optional[List[str]] = None,
         raise_on_enter: Optional[Exception] = None,
+        post_response: Optional[Dict[str, Any]] = None,
+        post_error: Optional[Exception] = None,
     ) -> MockClient:
         """Create a MockClient instance.
-
+        
         Args:
             response_lines: List of strings to return from stream
-            raise_on_enter: Exception to raise when entering context manager
-
+            raise_on_enter: Exception to raise when entering stream context manager
+            post_response: JSON data to return from async POST calls
+            post_error: Exception to raise from async POST calls
+            
         Returns:
             MockClient instance
         """
-        return MockClient(response_lines=response_lines, raise_on_enter=raise_on_enter)
-
+        return MockClient(
+            response_lines=response_lines,
+            raise_on_enter=raise_on_enter,
+            post_response=post_response,
+            post_error=post_error,
+        )
+    
     return _create_mock_client
