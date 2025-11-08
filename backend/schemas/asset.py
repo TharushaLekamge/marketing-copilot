@@ -70,3 +70,11 @@ class AssetResponse(BaseModel):
     asset_metadata: Optional[dict] = Field(None, description="Metadata for the asset")
     created_at: datetime = Field(..., description="Timestamp when the asset was created")
     updated_at: datetime = Field(..., description="Timestamp when the asset was last updated")
+
+
+class IngestionResponse(BaseModel):
+    """Schema for ingestion endpoint response."""
+
+    message: str = Field(..., description="Status message")
+    asset_id: UUID = Field(..., description="ID of the asset being ingested")
+    ingesting: bool = Field(..., description="Whether ingestion has started")

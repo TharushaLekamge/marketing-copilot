@@ -1,21 +1,25 @@
 """Asset router."""
 
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status, UploadFile, File
 from sqlalchemy.orm import Session
 
 from backend.core.dependencies import get_current_user
 from backend.core.file_processing import FileValidationError, validate_file
+from backend.core.ingestion import IngestionError, ingest_asset
 from backend.core.storage import FileNotFoundError, StorageError, get_storage
 from backend.core.vector_store import VectorStoreError, get_vector_store
-from backend.database import get_db
+from backend.database import SessionLocal, get_db
 from backend.models.asset import Asset
 from backend.models.project import Project
 from backend.models.user import User
-from backend.schemas.asset import AssetResponse, AssetUpdate
+from backend.schemas.asset import AssetResponse, AssetUpdate, IngestionResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects", tags=["assets"])
 
@@ -368,3 +372,94 @@ async def delete_asset(
     # Delete database record
     db.delete(asset)
     db.commit()
+
+
+def _ingest_asset_background(asset_id: UUID, project_id: UUID) -> None:
+    """Background task wrapper for asset ingestion.
+
+    Creates a new database session for the background task since the original
+    session will be closed after the response is sent.
+
+    Args:
+        asset_id: ID of the asset to ingest
+        project_id: ID of the project the asset belongs to
+    """
+    db = SessionLocal()
+    try:
+        ingest_asset(asset_id, project_id, db)
+    except IngestionError as e:
+        logger.error(f"Background ingestion failed for asset {asset_id}: {e}")
+    except Exception as e:
+        logger.exception(f"Unexpected error in background ingestion for asset {asset_id}: {e}")
+    finally:
+        db.close()
+
+
+@router.post(
+    "/{project_id}/assets/{asset_id}/ingest",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def ingest_asset_endpoint(
+    project_id: UUID,
+    asset_id: UUID,
+    background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> IngestionResponse:
+    """Start ingestion of an asset.
+
+    This endpoint triggers the ingestion process for an asset in the background.
+    The ingestion process includes:
+    1. Extracting text from the file
+    2. Chunking the text
+    3. Generating embeddings
+    4. Storing vectors in the vector store
+
+    Args:
+        project_id: ID of the project
+        asset_id: ID of the asset to ingest
+        background_tasks: FastAPI background tasks for async execution
+        current_user: The authenticated user
+        db: Database session
+
+    Returns:
+        IngestionResponse: Confirmation that ingestion has started
+
+    Raises:
+        HTTPException: If the asset or project is not found, not owned by the user,
+            or if the asset is already being ingested
+    """
+    # Verify project exists and user owns it
+    project = db.query(Project).filter(Project.id == project_id, Project.owner_id == current_user.id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    # Get asset
+    asset = db.query(Asset).filter(Asset.id == asset_id, Asset.project_id == project_id).first()
+    if not asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asset not found",
+        )
+
+    # Check if asset is already being ingested
+    if asset.ingesting:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Asset is already being ingested",
+        )
+
+    # Add background task for ingestion
+    background_tasks.add_task(_ingest_asset_background, asset_id, project_id)
+
+    logger.info(f"Ingestion started for asset {asset_id} in project {project_id}")
+
+    return IngestionResponse(
+        message="Ingestion started",
+        asset_id=asset_id,
+        ingesting=True,
+    )
