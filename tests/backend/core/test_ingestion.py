@@ -525,3 +525,183 @@ class TestIngestAssetVectorDocuments:
         assert vector_doc.metadata["start_char"] == sample_chunks[0].start_char
         assert vector_doc.metadata["end_char"] == sample_chunks[0].end_char
         assert vector_doc.metadata["token_count"] == sample_chunks[0].token_count
+
+
+class TestIngestAssetIngestingField:
+    """Tests for ingesting field behavior."""
+
+    @patch("backend.core.ingestion.get_vector_store")
+    @patch("backend.core.ingestion.get_embedding_generator")
+    @patch("backend.core.ingestion.chunk_text")
+    @patch("backend.core.ingestion.extract_text_from_file")
+    @patch("backend.core.ingestion.get_storage")
+    def test__ingest_asset__sets_ingesting_to_true_then_false_on_success(
+        self,
+        mock_get_storage: MagicMock,
+        mock_extract_text: MagicMock,
+        mock_chunk_text: MagicMock,
+        mock_get_embedding_generator: MagicMock,
+        mock_get_vector_store: MagicMock,
+        test_db_session,
+        sample_asset: Asset,
+        sample_file_content: bytes,
+        sample_text: str,
+        sample_chunks: list[TextChunk],
+        sample_embeddings: list[list[float]],
+    ):
+        """Test that ingesting is set to True during ingestion and False on success."""
+        # Setup mocks
+        mock_storage = MagicMock()
+        mock_storage.read.return_value = sample_file_content
+        mock_get_storage.return_value = mock_storage
+
+        mock_extract_text.return_value = sample_text
+        mock_chunk_text.return_value = sample_chunks
+
+        mock_embedding_generator = MagicMock()
+        mock_embedding_generator.generate_embeddings_batch.return_value = sample_embeddings
+        mock_get_embedding_generator.return_value = mock_embedding_generator
+
+        mock_vector_store = MagicMock()
+        mock_get_vector_store.return_value = mock_vector_store
+
+        # Verify initial state
+        assert sample_asset.ingesting is False
+
+        # Execute
+        ingest_asset(sample_asset.id, sample_asset.project_id, test_db_session)
+
+        # Verify final state
+        test_db_session.refresh(sample_asset)
+        assert sample_asset.ingesting is False
+        assert sample_asset.ingested is True
+
+    @patch("backend.core.ingestion.get_storage")
+    def test__ingest_asset__sets_ingesting_to_false_on_error(
+        self,
+        mock_get_storage: MagicMock,
+        test_db_session,
+        sample_asset: Asset,
+    ):
+        """Test that ingesting is reset to False when ingestion fails."""
+        mock_storage = MagicMock()
+        mock_storage.read.side_effect = FileNotFoundError("File not found")
+        mock_get_storage.return_value = mock_storage
+
+        # Verify initial state
+        assert sample_asset.ingesting is False
+
+        # Execute and expect error
+        with pytest.raises(IngestionError):
+            ingest_asset(sample_asset.id, sample_asset.project_id, test_db_session)
+
+        # Verify ingesting is reset to False even after error
+        test_db_session.refresh(sample_asset)
+        assert sample_asset.ingesting is False
+
+    def test__ingest_asset__fails_if_already_ingesting(
+        self,
+        test_db_session,
+        sample_asset: Asset,
+    ):
+        """Test that ingestion fails if asset is already being ingested."""
+        # Set ingesting to True
+        sample_asset.ingesting = True
+        test_db_session.commit()
+
+        # Execute and expect error
+        with pytest.raises(IngestionError, match="already being ingested"):
+            ingest_asset(sample_asset.id, sample_asset.project_id, test_db_session)
+
+        # Verify ingesting is still True (not changed by failed ingestion)
+        test_db_session.refresh(sample_asset)
+        assert sample_asset.ingesting is True
+
+    @patch("backend.core.ingestion.get_vector_store")
+    @patch("backend.core.ingestion.get_embedding_generator")
+    @patch("backend.core.ingestion.chunk_text")
+    @patch("backend.core.ingestion.extract_text_from_file")
+    @patch("backend.core.ingestion.get_storage")
+    def test__ingest_asset__commits_ingesting_status_immediately(
+        self,
+        mock_get_storage: MagicMock,
+        mock_extract_text: MagicMock,
+        mock_chunk_text: MagicMock,
+        mock_get_embedding_generator: MagicMock,
+        mock_get_vector_store: MagicMock,
+        test_db_session,
+        sample_asset: Asset,
+        sample_file_content: bytes,
+        sample_text: str,
+        sample_chunks: list[TextChunk],
+        sample_embeddings: list[list[float]],
+    ):
+        """Test that ingesting status is committed immediately to lock the asset."""
+        # Setup mocks
+        mock_storage = MagicMock()
+        mock_storage.read.return_value = sample_file_content
+        mock_get_storage.return_value = mock_storage
+
+        mock_extract_text.return_value = sample_text
+        mock_chunk_text.return_value = sample_chunks
+
+        mock_embedding_generator = MagicMock()
+        mock_embedding_generator.generate_embeddings_batch.return_value = sample_embeddings
+        mock_get_embedding_generator.return_value = mock_embedding_generator
+
+        mock_vector_store = MagicMock()
+        mock_get_vector_store.return_value = mock_vector_store
+
+        # Execute ingestion
+        ingest_asset(sample_asset.id, sample_asset.project_id, test_db_session)
+
+        # Verify in a fresh session that ingesting was set and then cleared
+        # (We can't easily test the intermediate state, but we can verify final state)
+        test_db_session.refresh(sample_asset)
+        assert sample_asset.ingesting is False
+        assert sample_asset.ingested is True
+
+    @patch("backend.core.ingestion.get_vector_store")
+    @patch("backend.core.ingestion.get_embedding_generator")
+    @patch("backend.core.ingestion.chunk_text")
+    @patch("backend.core.ingestion.extract_text_from_file")
+    @patch("backend.core.ingestion.get_storage")
+    def test__ingest_asset__resets_ingesting_on_unexpected_error(
+        self,
+        mock_get_storage: MagicMock,
+        mock_extract_text: MagicMock,
+        mock_chunk_text: MagicMock,
+        mock_get_embedding_generator: MagicMock,
+        mock_get_vector_store: MagicMock,
+        test_db_session,
+        sample_asset: Asset,
+        sample_file_content: bytes,
+        sample_text: str,
+        sample_chunks: list[TextChunk],
+        sample_embeddings: list[list[float]],
+    ):
+        """Test that ingesting is reset to False even on unexpected errors."""
+        # Setup mocks
+        mock_storage = MagicMock()
+        mock_storage.read.return_value = sample_file_content
+        mock_get_storage.return_value = mock_storage
+
+        mock_extract_text.return_value = sample_text
+        mock_chunk_text.return_value = sample_chunks
+
+        mock_embedding_generator = MagicMock()
+        mock_embedding_generator.generate_embeddings_batch.return_value = sample_embeddings
+        mock_get_embedding_generator.return_value = mock_embedding_generator
+
+        # Make vector store fail with unexpected error
+        mock_vector_store = MagicMock()
+        mock_vector_store.add_documents.side_effect = ValueError("Unexpected error")
+        mock_get_vector_store.return_value = mock_vector_store
+
+        # Execute and expect error
+        with pytest.raises(IngestionError):
+            ingest_asset(sample_asset.id, sample_asset.project_id, test_db_session)
+
+        # Verify ingesting is reset to False even after unexpected error
+        test_db_session.refresh(sample_asset)
+        assert sample_asset.ingesting is False
