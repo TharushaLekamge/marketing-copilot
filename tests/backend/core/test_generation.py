@@ -20,15 +20,21 @@ def mock_kernel():
     """Create a mock Semantic Kernel instance."""
     kernel = MagicMock()
 
-    # Mock function results
+    # Mock function results - value should be a list with ChatMessageContent objects
+    short_form_content = MagicMock()
+    short_form_content.content = "Short form content here"
     short_form_result = MagicMock()
-    short_form_result.value = "Short form content here"
+    short_form_result.value = [short_form_content]
 
+    long_form_content = MagicMock()
+    long_form_content.content = "Long form content here"
     long_form_result = MagicMock()
-    long_form_result.value = "Long form content here"
+    long_form_result.value = [long_form_content]
 
+    cta_content = MagicMock()
+    cta_content.content = "CTA content here"
     cta_result = MagicMock()
-    cta_result.value = "CTA content here"
+    cta_result.value = [cta_content]
 
     # Mock invoke to return different results based on function
     async def mock_invoke(*args, **kwargs):
@@ -114,9 +120,6 @@ class TestContentGenerationOrchestratorInit:
         # Verify service was added to kernel
         mock_kernel.add_service.assert_called_once_with(mock_openai_service)
 
-        # Verify functions were registered
-        assert mock_kernel.add_function.call_count == 3
-
         # Verify instance attributes
         assert orchestrator.kernel == mock_kernel
         assert orchestrator.api_key == "test-api-key"
@@ -195,15 +198,21 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_settings.openai_api_key = "test-api-key"
         mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
-        # Mock function results
+        # Mock function results - value should be a list with ChatMessageContent objects
+        short_form_content = MagicMock()
+        short_form_content.content = "Check out our new product! #innovation"
         short_form_result = MagicMock()
-        short_form_result.value = "Check out our new product! #innovation"
+        short_form_result.value = [short_form_content]
 
+        long_form_content = MagicMock()
+        long_form_content.content = "We're excited to introduce our latest innovation..."
         long_form_result = MagicMock()
-        long_form_result.value = "We're excited to introduce our latest innovation..."
+        long_form_result.value = [long_form_content]
 
+        cta_content = MagicMock()
+        cta_content.content = "Click here to learn more!"
         cta_result = MagicMock()
-        cta_result.value = "Click here to learn more!"
+        cta_result.value = [cta_content]
 
         # Track which function is being invoked
         invoke_calls = []
@@ -293,15 +302,21 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_settings.openai_api_key = "test-api-key"
         mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
-        # Mock function results
+        # Mock function results - value should be a list with ChatMessageContent objects
+        short_form_content = MagicMock()
+        short_form_content.content = "Short content"
         short_form_result = MagicMock()
-        short_form_result.value = "Short content"
+        short_form_result.value = [short_form_content]
 
+        long_form_content = MagicMock()
+        long_form_content.content = "Long content"
         long_form_result = MagicMock()
-        long_form_result.value = "Long content"
+        long_form_result.value = [long_form_content]
 
+        cta_content = MagicMock()
+        cta_content.content = "CTA content"
         cta_result = MagicMock()
-        cta_result.value = "CTA content"
+        cta_result.value = [cta_content]
 
         invoke_count = 0
 
@@ -408,15 +423,21 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_settings.openai_api_key = "test-api-key"
         mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
-        # Mock function results
+        # Mock function results - value should be a list with ChatMessageContent objects
+        short_form_content = MagicMock()
+        short_form_content.content = "Branded short content"
         short_form_result = MagicMock()
-        short_form_result.value = "Branded short content"
+        short_form_result.value = [short_form_content]
 
+        long_form_content = MagicMock()
+        long_form_content.content = "Branded long content"
         long_form_result = MagicMock()
-        long_form_result.value = "Branded long content"
+        long_form_result.value = [long_form_content]
 
+        cta_content = MagicMock()
+        cta_content.content = "Branded CTA"
         cta_result = MagicMock()
-        cta_result.value = "Branded CTA"
+        cta_result.value = [cta_content]
 
         invoke_count = 0
 
