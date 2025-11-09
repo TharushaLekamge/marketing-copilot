@@ -182,29 +182,54 @@ async def update_generated_content(
             detail="Not authorized to update content for this project",
         )
 
-    # TODO: Temporarily returning dummy response for frontend implementation
-    # Actual update logic will be implemented after frontend is complete
-    # This would typically:
-    # 1. Find the latest generation record for the project
-    # 2. Update the response field with new content
-    # 3. Save to database
-    # 4. Return updated response
+    # Find the latest generation record for the project
+    generation_record = (
+        db.query(GenerationRecord)
+        .filter(GenerationRecord.project_id == update_request.project_id)
+        .order_by(GenerationRecord.created_at.desc())
+        .first()
+    )
 
-    # Build dummy updated response
-    dummy_short_form = update_request.short_form or "🚀 Updated short form content... Get started today!"
-    dummy_long_form = update_request.long_form or "Introducing our latest campaign: Updated long form content"
-    dummy_cta = update_request.cta or "Ready to get started? Updated CTA content... Click here to learn more!"
+    if generation_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No generation record found for this project",
+        )
 
+    # Update the response field with new content (only update fields that are provided)
+    current_response = generation_record.response or {}
+    updated_response_data = {
+        "short_form": update_request.short_form if update_request.short_form is not None else current_response.get("short_form", ""),
+        "long_form": update_request.long_form if update_request.long_form is not None else current_response.get("long_form", ""),
+        "cta": update_request.cta if update_request.cta is not None else current_response.get("cta", ""),
+    }
+
+    # Update the generation record in the database
+    generation_record.response = updated_response_data
+    db.commit()
+    db.refresh(generation_record)
+
+    # Extract token usage information if available
+    tokens_used = None
+    if generation_record.tokens:
+        if isinstance(generation_record.tokens, dict):
+            prompt_tokens = generation_record.tokens.get("prompt", 0)
+            completion_tokens = generation_record.tokens.get("completion", 0)
+            tokens_used = prompt_tokens + completion_tokens
+        elif isinstance(generation_record.tokens, int):
+            tokens_used = generation_record.tokens
+
+    # Build response with updated content and original metadata
     updated_response = GenerationResponse(
-        short_form=dummy_short_form,
-        long_form=dummy_long_form,
-        cta=dummy_cta,
+        short_form=updated_response_data["short_form"],
+        long_form=updated_response_data["long_form"],
+        cta=updated_response_data["cta"],
         metadata={
-            "model": "dummy-model-v1.0",
-            "model_info": {"base_url": "http://localhost:11434"},
+            "model": generation_record.model,
+            "model_info": {"base_url": ""},  # Base URL not stored in generation record
             "project_id": str(update_request.project_id),
-            "tokens_used": 150,
-            "generation_time": 0.5,
+            "tokens_used": tokens_used,
+            "generation_time": None,  # Generation time not stored in generation record
         },
     )
 
