@@ -119,6 +119,7 @@ async def generate_content(
 
         # Build response
         response = GenerationResponse(
+            generation_id=generation_record.id,
             short_form=generation_result.get("short_form", ""),
             long_form=generation_result.get("long_form", ""),
             cta=generation_result.get("cta", ""),
@@ -148,8 +149,9 @@ async def generate_content(
         ) from e
 
 
-@router.patch("/update", response_model=GenerationUpdateResponse, status_code=status.HTTP_200_OK)
+@router.patch("/{generation_id}", response_model=GenerationUpdateResponse, status_code=status.HTTP_200_OK)
 async def update_generated_content(
+    generation_id: UUID,
     update_request: GenerationUpdateRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
@@ -157,7 +159,8 @@ async def update_generated_content(
     """Update generated content variants.
 
     Args:
-        update_request: Update request with project_id and optional content updates
+        generation_id: ID of the generation record to update
+        update_request: Update request with optional content updates
         current_user: Current authenticated user
         db: Database session
 
@@ -165,10 +168,19 @@ async def update_generated_content(
         GenerationUpdateResponse: Success message and updated content
 
     Raises:
-        HTTPException: If project not found or user doesn't own project
+        HTTPException: If generation record not found or user doesn't own the project
     """
+    # Find the generation record
+    generation_record = db.query(GenerationRecord).filter(GenerationRecord.id == generation_id).first()
+
+    if generation_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Generation record not found",
+        )
+
     # Validate project exists and user owns it
-    project = db.query(Project).filter(Project.id == update_request.project_id).first()
+    project = db.query(Project).filter(Project.id == generation_record.project_id).first()
 
     if project is None:
         raise HTTPException(
@@ -182,25 +194,15 @@ async def update_generated_content(
             detail="Not authorized to update content for this project",
         )
 
-    # Find the latest generation record for the project
-    generation_record = (
-        db.query(GenerationRecord)
-        .filter(GenerationRecord.project_id == update_request.project_id)
-        .order_by(GenerationRecord.created_at.desc())
-        .first()
-    )
-
-    if generation_record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No generation record found for this project",
-        )
-
     # Update the response field with new content (only update fields that are provided)
     current_response = generation_record.response or {}
     updated_response_data = {
-        "short_form": update_request.short_form if update_request.short_form is not None else current_response.get("short_form", ""),
-        "long_form": update_request.long_form if update_request.long_form is not None else current_response.get("long_form", ""),
+        "short_form": update_request.short_form
+        if update_request.short_form is not None
+        else current_response.get("short_form", ""),
+        "long_form": update_request.long_form
+        if update_request.long_form is not None
+        else current_response.get("long_form", ""),
         "cta": update_request.cta if update_request.cta is not None else current_response.get("cta", ""),
     }
 
@@ -221,19 +223,23 @@ async def update_generated_content(
 
     # Build response with updated content and original metadata
     updated_response = GenerationResponse(
+        generation_id=generation_record.id,
         short_form=updated_response_data["short_form"],
         long_form=updated_response_data["long_form"],
         cta=updated_response_data["cta"],
         metadata={
             "model": generation_record.model,
             "model_info": {"base_url": ""},  # Base URL not stored in generation record
-            "project_id": str(update_request.project_id),
+            "project_id": str(generation_record.project_id),
             "tokens_used": tokens_used,
             "generation_time": None,  # Generation time not stored in generation record
         },
     )
 
-    logger.info(f"Updated content for project {update_request.project_id} by user {current_user.id}")
+    logger.info(
+        f"Updated content for generation {generation_id} "
+        f"(project {generation_record.project_id}) by user {current_user.id}"
+    )
 
     return GenerationUpdateResponse(
         message="Content updated successfully",

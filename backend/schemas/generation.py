@@ -39,6 +39,7 @@ class GenerationMetadata(BaseModel):
 class GenerationResponse(BaseModel):
     """Response schema for content generation."""
 
+    generation_id: UUID = Field(..., description="ID of the generation record")
     short_form: str = Field(..., description="Short-form content variant (max 280 chars)")
     long_form: str = Field(..., description="Long-form content variant (150-300 words)")
     cta: str = Field(..., description="CTA-focused content variant")
@@ -73,7 +74,6 @@ class GenerationResponse(BaseModel):
 class GenerationUpdateRequest(BaseModel):
     """Request schema for updating generated content."""
 
-    project_id: UUID = Field(..., description="ID of the project")
     short_form: Optional[str] = Field(None, description="Updated short-form content")
     long_form: Optional[str] = Field(None, description="Updated long-form content")
     cta: Optional[str] = Field(None, description="Updated CTA content")
