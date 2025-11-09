@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_success(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
     """Test successful content generation."""
+
     # Setup mock generation result
     mock_generate.return_value = {
         "short_form": "Check out our new product! #innovation",
@@ -87,6 +88,7 @@ def test_generate_content_with_all_optional_fields(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation with all optional fields."""
+
     mock_generate.return_value = {
         "short_form": "Short content",
         "long_form": "Long content",
@@ -135,6 +137,7 @@ def test_generate_content_with_all_optional_fields(
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_with_assets(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
     """Test content generation with project assets."""
+
     mock_generate.return_value = {
         "short_form": "Short content",
         "long_form": "Long content",
@@ -263,6 +266,7 @@ def test_generate_content_with_generation_error(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation when generation fails."""
+
     mock_generate.side_effect = GenerationError("LLM service unavailable")
 
     user, token = create_user(
@@ -301,6 +305,7 @@ def test_generate_content_with_unexpected_error(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation when unexpected error occurs."""
+
     mock_generate.side_effect = Exception("Unexpected database error")
 
     user, token = create_user(
@@ -334,6 +339,7 @@ def test_generate_content_creates_generation_record(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test that generation record is created with correct data."""
+
     mock_generate.return_value = {
         "short_form": "Short",
         "long_form": "Long",
@@ -384,6 +390,7 @@ def test_generate_content_with_minimal_request(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation with minimal required fields only."""
+
     mock_generate.return_value = {
         "short_form": "Short",
         "long_form": "Long",
@@ -478,6 +485,7 @@ def test_generate_content_response_includes_variants(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test that response includes variants array with calculated statistics."""
+
     mock_generate.return_value = {
         "short_form": "Short form content here",
         "long_form": "Long form content with more words here",

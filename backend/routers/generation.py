@@ -14,7 +14,12 @@ from backend.models.asset import Asset
 from backend.models.generation_record import GenerationRecord
 from backend.models.project import Project
 from backend.models.user import User
-from backend.schemas.generation import GenerationRequest, GenerationResponse
+from backend.schemas.generation import (
+    GenerationRequest,
+    GenerationResponse,
+    GenerationUpdateRequest,
+    GenerationUpdateResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +134,6 @@ async def generate_content(
         logger.info(f"Generated content for project {generation_request.project_id} by user {current_user.id}")
 
         return response
-
     except GenerationError as e:
         logger.error(f"Generation error: {e}", exc_info=True)
         raise HTTPException(
@@ -142,3 +146,71 @@ async def generate_content(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during content generation",
         ) from e
+
+
+@router.patch("/update", response_model=GenerationUpdateResponse, status_code=status.HTTP_200_OK)
+async def update_generated_content(
+    update_request: GenerationUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> GenerationUpdateResponse:
+    """Update generated content variants.
+
+    Args:
+        update_request: Update request with project_id and optional content updates
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        GenerationUpdateResponse: Success message and updated content
+
+    Raises:
+        HTTPException: If project not found or user doesn't own project
+    """
+    # Validate project exists and user owns it
+    project = db.query(Project).filter(Project.id == update_request.project_id).first()
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update content for this project",
+        )
+
+    # TODO: Temporarily returning dummy response for frontend implementation
+    # Actual update logic will be implemented after frontend is complete
+    # This would typically:
+    # 1. Find the latest generation record for the project
+    # 2. Update the response field with new content
+    # 3. Save to database
+    # 4. Return updated response
+
+    # Build dummy updated response
+    dummy_short_form = update_request.short_form or "🚀 Updated short form content... Get started today!"
+    dummy_long_form = update_request.long_form or "Introducing our latest campaign: Updated long form content"
+    dummy_cta = update_request.cta or "Ready to get started? Updated CTA content... Click here to learn more!"
+
+    updated_response = GenerationResponse(
+        short_form=dummy_short_form,
+        long_form=dummy_long_form,
+        cta=dummy_cta,
+        metadata={
+            "model": "dummy-model-v1.0",
+            "model_info": {"base_url": "http://localhost:11434"},
+            "project_id": str(update_request.project_id),
+            "tokens_used": 150,
+            "generation_time": 0.5,
+        },
+    )
+
+    logger.info(f"Updated content for project {update_request.project_id} by user {current_user.id}")
+
+    return GenerationUpdateResponse(
+        message="Content updated successfully",
+        updated=updated_response,
+    )

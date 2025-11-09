@@ -58,9 +58,16 @@ class Settings(BaseSettings):
         alias="OPENAI_API_KEY",
     )
     openai_chat_model_id: str | None = Field(
-        default="gpt-3.5-turbo-instruct",
+        default="gpt-4o",
         description="OpenAI chat model ID (e.g., gpt-4, gpt-3.5-turbo)",
         alias="OPENAI_CHAT_MODEL_ID",
+    )
+
+    # Generation
+    serve_actual_generation: bool = Field(
+        default=False,
+        description="If True, use actual LLM generation. If False, return dummy values for frontend development",
+        alias="SERVE_ACTUAL_GENERATION",
     )
 
     @field_validator("database_url", mode="before")

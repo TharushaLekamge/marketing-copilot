@@ -80,7 +80,7 @@ services:
         echo 'Migrations complete!' &&
         echo 'Starting server with auto-reload...' &&
         cd /app &&
-        uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+        uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload --loop asyncio
       "
 
 

@@ -55,6 +55,50 @@ export interface Asset {
   updated_at: string;
 }
 
+export interface GenerationRequest {
+  project_id: string;
+  brief: string;
+  brand_tone?: string | null;
+  audience?: string | null;
+  objective?: string | null;
+  channels?: string[] | null;
+}
+
+export interface ContentVariant {
+  variant_type: string;
+  content: string;
+  character_count: number;
+  word_count: number;
+}
+
+export interface GenerationMetadata {
+  model: string;
+  model_info: Record<string, unknown>;
+  project_id?: string | null;
+  tokens_used?: number | null;
+  generation_time?: number | null;
+}
+
+export interface GenerationResponse {
+  short_form: string;
+  long_form: string;
+  cta: string;
+  metadata: GenerationMetadata;
+  variants?: ContentVariant[] | null;
+}
+
+export interface GenerationUpdateRequest {
+  project_id: string;
+  short_form?: string | null;
+  long_form?: string | null;
+  cta?: string | null;
+}
+
+export interface GenerationUpdateResponse {
+  message: string;
+  updated: GenerationResponse;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -86,10 +130,25 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({
-        detail: response.statusText,
-      }));
-      throw new Error(error.detail || "An error occurred");
+      let errorMessage = "An error occurred";
+      try {
+        const error = await response.json();
+        // Handle different error response formats
+        const extractedMessage =
+          error.detail ||
+          error.message ||
+          error.error ||
+          (typeof error === "string" ? error : null);
+        errorMessage = extractedMessage || response.statusText || "An error occurred";
+      } catch {
+        // If JSON parsing fails, use status text
+        errorMessage = response.statusText || "An error occurred";
+      }
+      // Ensure errorMessage is always a non-empty string
+      if (!errorMessage || errorMessage.trim() === "") {
+        errorMessage = "An error occurred";
+      }
+      throw new Error(errorMessage);
     }
 
     // Handle 204 No Content responses
@@ -222,13 +281,45 @@ class ApiClient {
     );
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({
-        detail: response.statusText,
-      }));
-      throw new Error(error.detail || "An error occurred");
+      let errorMessage = "An error occurred";
+      try {
+        const error = await response.json();
+        // Handle different error response formats
+        const extractedMessage =
+          error.detail ||
+          error.message ||
+          error.error ||
+          (typeof error === "string" ? error : null);
+        errorMessage = extractedMessage || response.statusText || "An error occurred";
+      } catch {
+        // If JSON parsing fails, use status text
+        errorMessage = response.statusText || "An error occurred";
+      }
+      // Ensure errorMessage is always a non-empty string
+      if (!errorMessage || errorMessage.trim() === "") {
+        errorMessage = "An error occurred";
+      }
+      throw new Error(errorMessage);
     }
 
     return response.blob();
+  }
+
+  // Generation methods
+  async generateContent(data: GenerationRequest): Promise<GenerationResponse> {
+    return this.request<GenerationResponse>("/api/generate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateGeneratedContent(
+    data: GenerationUpdateRequest
+  ): Promise<GenerationUpdateResponse> {
+    return this.request<GenerationUpdateResponse>("/api/generate/update", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
   }
 }
 
