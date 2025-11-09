@@ -168,4 +168,3 @@ async def generate_content(
         logger.info(f"Returned dummy content for project {generation_request.project_id} by user {current_user.id}")
 
         return response
-
