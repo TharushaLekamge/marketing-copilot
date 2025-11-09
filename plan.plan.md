@@ -298,6 +298,8 @@ Each step should be:
 
 - Fetch previous generations endpoint (GET /api/generate?project_id={id}) - Method to retrieve generation history for a project
 
+- Remove settings.serve_actual_generation check - Once frontend is complete, remove the conditional check and always use actual generation. Also remove the corresponding mocks in tests (tests/backend/routers/test_generation.py) that mock settings.serve_actual_generation
+
   
 
 ### Step 14: Semantic Search

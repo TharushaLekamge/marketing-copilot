@@ -9,10 +9,19 @@ from backend.models.generation_record import GenerationRecord
 from backend.models.project import Project
 from fastapi.testclient import TestClient
 
+# TODO: Remove this mock when settings.serve_actual_generation check is removed from generation router
+# This mock is needed because the router checks settings.serve_actual_generation before running actual generation
 
+
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_success(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
+def test_generate_content_success(
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
+):
     """Test successful content generation."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     # Setup mock generation result
     mock_generate.return_value = {
         "short_form": "Check out our new product! #innovation",
@@ -82,11 +91,15 @@ def test_generate_content_success(mock_generate: AsyncMock, test_client: TestCli
     assert call_args[1]["brand_tone"] == "Professional and friendly"
 
 
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_with_all_optional_fields(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation with all optional fields."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     mock_generate.return_value = {
         "short_form": "Short content",
         "long_form": "Long content",
@@ -132,9 +145,15 @@ def test_generate_content_with_all_optional_fields(
     assert call_args[1]["brand_tone"] == "Casual"
 
 
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_with_assets(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
+def test_generate_content_with_assets(
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
+):
     """Test content generation with project assets."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     mock_generate.return_value = {
         "short_form": "Short content",
         "long_form": "Long content",
@@ -258,11 +277,15 @@ def test_generate_content_with_other_user_project(test_client: TestClient, creat
     assert response.json()["detail"] == "Not authorized to generate content for this project"
 
 
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_with_generation_error(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation when generation fails."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     mock_generate.side_effect = GenerationError("LLM service unavailable")
 
     user, token = create_user(
@@ -296,11 +319,15 @@ def test_generate_content_with_generation_error(
     assert record is None
 
 
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_with_unexpected_error(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation when unexpected error occurs."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     mock_generate.side_effect = Exception("Unexpected database error")
 
     user, token = create_user(
@@ -329,11 +356,15 @@ def test_generate_content_with_unexpected_error(
     assert "unexpected error" in response.json()["detail"].lower()
 
 
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_creates_generation_record(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
 ):
     """Test that generation record is created with correct data."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     mock_generate.return_value = {
         "short_form": "Short",
         "long_form": "Long",
@@ -379,11 +410,15 @@ def test_generate_content_creates_generation_record(
     assert "Professional" in record.prompt
 
 
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_with_minimal_request(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
 ):
     """Test content generation with minimal required fields only."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     mock_generate.return_value = {
         "short_form": "Short",
         "long_form": "Long",
@@ -473,11 +508,15 @@ def test_generate_content_with_empty_brief(test_client: TestClient, create_user,
     assert response.status_code == 422
 
 
+@patch("backend.routers.generation.settings")
 @patch("backend.routers.generation.generate_content_variants")
 def test_generate_content_response_includes_variants(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_generate: AsyncMock, mock_settings, test_client: TestClient, create_user, test_db_session
 ):
     """Test that response includes variants array with calculated statistics."""
+    # TODO: Remove this mock when settings.serve_actual_generation check is removed
+    mock_settings.serve_actual_generation = True
+    
     mock_generate.return_value = {
         "short_form": "Short form content here",
         "long_form": "Long form content with more words here",
