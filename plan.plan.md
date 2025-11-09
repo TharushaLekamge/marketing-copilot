@@ -205,6 +205,8 @@ Each step should be:
 
 - List user projects endpoint (GET /api/projects)
 
+- ⏳ Refactor GET /api/projects/{project_id} endpoint to return related objects (assets, generation_records) if requested through `selected_fields` query parameter
+
   
 
 ### Step 7: Asset Model & File Upload ✅ COMPLETE
@@ -299,6 +301,8 @@ Each step should be:
 - Fetch previous generations endpoint (GET /api/generate?project_id={id}) - Method to retrieve generation history for a project
 
 - Remove settings.serve_actual_generation check - Once frontend is complete, remove the conditional check and always use actual generation. Also remove the corresponding mocks in tests (tests/backend/routers/test_generation.py) that mock settings.serve_actual_generation
+
+- ⏳ Refactor POST /api/generate endpoint to return accepted response (202 Accepted) immediately and offload the generation part to an async background task
 
   
 
