@@ -294,6 +294,10 @@ Each step should be:
 
 - Response schemas with provenance metadata
 
+- Update endpoint (PATCH /api/generate/update) - Fully implement update_generated_content method to persist edited content to database
+
+- Fetch previous generations endpoint (GET /api/generate?project_id={id}) - Method to retrieve generation history for a project
+
   
 
 ### Step 14: Semantic Search
@@ -383,6 +387,8 @@ Each step should be:
 - Variant display component
 
 - Content editor component
+
+- Generation history view - UI to display and navigate previous generations for a project
 
   
 
@@ -679,6 +685,10 @@ Each step should be:
   
 
 - **backend/routers/generation.py**: POST /api/generate endpoint
+
+- **backend/routers/generation.py**: PATCH /api/generate/update endpoint - Fully implement update_generated_content to persist edited content to database (currently returns dummy data)
+
+- **backend/routers/generation.py**: GET /api/generate endpoint - Method to fetch previous generation records for a project
 
 - **backend/core/prompt_templates.py**: System prompts for content generation
 
