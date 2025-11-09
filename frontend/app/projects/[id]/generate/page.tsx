@@ -107,7 +107,7 @@ export default function GeneratePage({
   };
 
   const handleEditVariant = async (variantType: string, content: string) => {
-    if (!response) return;
+    if (!response || !response.generation_id) return;
 
     try {
       setUpdating(true);
@@ -125,13 +125,12 @@ export default function GeneratePage({
 
       // Call API to save the update
       const updateRequest: GenerationUpdateRequest = {
-        project_id: id,
         short_form: updatedResponse.short_form,
         long_form: updatedResponse.long_form,
         cta: updatedResponse.cta,
       };
 
-      const result = await apiClient.updateGeneratedContent(updateRequest);
+      const result = await apiClient.updateGenerationRecord(response.generation_id, updateRequest);
       
       // Update with server response
       setResponse(result.updated);
