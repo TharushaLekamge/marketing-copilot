@@ -110,6 +110,81 @@ All asset endpoints require authentication via Bearer token in the Authorization
   - The `ingesting` field on the asset tracks ingestion status
   - Check asset status via GET endpoint to see when ingestion completes
 
+### Content Generation
+
+All content generation endpoints require authentication via Bearer token in the Authorization header.
+
+- **POST** `/api/generate` - Generate content variants for a marketing campaign
+  - Request: `{ "project_id": "uuid", "brief": "Campaign brief", "brand_tone": "Professional and friendly", "audience": "Young professionals", "objective": "Increase brand awareness", "channels": ["social", "email"] }`
+    - `project_id` (required): UUID of the project
+    - `brief` (required): Campaign brief or description (min 1 character)
+    - `brand_tone` (optional): Brand tone and style guidelines
+    - `audience` (optional): Target audience description
+    - `objective` (optional): Campaign objective
+    - `channels` (optional): List of target channels (e.g., social, email)
+  - Response: `201 Created` with generated content variants:
+    ```json
+    {
+      "generation_id": "uuid",
+      "short_form": "Short-form content variant (max 280 chars)",
+      "long_form": "Long-form content variant (150-300 words)",
+      "cta": "CTA-focused content variant",
+      "metadata": {
+        "model": "gpt-3.5-turbo-instruct",
+        "model_info": {"base_url": ""},
+        "project_id": "uuid",
+        "tokens_used": null,
+        "generation_time": null
+      },
+      "variants": [
+        {
+          "variant_type": "short_form",
+          "content": "...",
+          "character_count": 150,
+          "word_count": 25
+        },
+        ...
+      ]
+    }
+    ```
+  - Returns `404 Not Found` if project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Returns `500 Internal Server Error` if content generation fails
+  - Requires authentication
+  - Uses project assets (if ingested) for context during generation
+  - Creates a generation record in the database for tracking
+
+- **PATCH** `/api/generate/{generation_id}` - Update generated content variants
+  - Request: `{ "short_form": "Updated short form", "long_form": "Updated long form content", "cta": "Updated CTA" }`
+    - All fields are optional - only provided fields will be updated
+    - Fields not provided will preserve existing values
+  - Response: `200 OK` with updated content:
+    ```json
+    {
+      "message": "Content updated successfully",
+      "updated": {
+        "generation_id": "uuid",
+        "short_form": "Updated short form",
+        "long_form": "Updated long form content",
+        "cta": "Updated CTA",
+        "metadata": {
+          "model": "gpt-3.5-turbo-instruct",
+          "model_info": {"base_url": ""},
+          "project_id": "uuid",
+          "tokens_used": 300,
+          "generation_time": null
+        },
+        "variants": [...]
+      }
+    }
+    ```
+  - Returns `404 Not Found` if generation record or project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Returns `422 Unprocessable Entity` if generation_id format is invalid
+  - Requires authentication
+  - Updates the generation record in the database
+  - Preserves original metadata (model, tokens, etc.)
+
 ### Health Check
 
 - **GET** `/health` - Application health check
