@@ -11,9 +11,7 @@ from fastapi.testclient import TestClient
 
 
 @patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_success(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
-):
+def test_generate_content_success(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
     """Test successful content generation."""
 
     # Setup mock generation result
@@ -137,9 +135,7 @@ def test_generate_content_with_all_optional_fields(
 
 
 @patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_with_assets(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
-):
+def test_generate_content_with_assets(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
     """Test content generation with project assets."""
 
     mock_generate.return_value = {
