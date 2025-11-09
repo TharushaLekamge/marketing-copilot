@@ -168,12 +168,20 @@ export default function ProjectDetailPage({
                 Updated: {new Date(project.updated_at).toLocaleDateString()}
               </p>
             </div>
-            <button
-              onClick={() => router.push(`/projects/${id}/edit`)}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Edit Project
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => router.push(`/projects/${id}/generate`)}
+                className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+              >
+                Generate Content
+              </button>
+              <button
+                onClick={() => router.push(`/projects/${id}/edit`)}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Edit Project
+              </button>
+            </div>
           </div>
         </div>
 
