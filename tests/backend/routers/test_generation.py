@@ -21,7 +21,7 @@ def test_generate_content_success(
     """Test successful content generation."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     # Setup mock generation result
     mock_generate.return_value = {
         "short_form": "Check out our new product! #innovation",
@@ -99,7 +99,7 @@ def test_generate_content_with_all_optional_fields(
     """Test content generation with all optional fields."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     mock_generate.return_value = {
         "short_form": "Short content",
         "long_form": "Long content",
@@ -153,7 +153,7 @@ def test_generate_content_with_assets(
     """Test content generation with project assets."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     mock_generate.return_value = {
         "short_form": "Short content",
         "long_form": "Long content",
@@ -285,7 +285,7 @@ def test_generate_content_with_generation_error(
     """Test content generation when generation fails."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     mock_generate.side_effect = GenerationError("LLM service unavailable")
 
     user, token = create_user(
@@ -327,7 +327,7 @@ def test_generate_content_with_unexpected_error(
     """Test content generation when unexpected error occurs."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     mock_generate.side_effect = Exception("Unexpected database error")
 
     user, token = create_user(
@@ -364,7 +364,7 @@ def test_generate_content_creates_generation_record(
     """Test that generation record is created with correct data."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     mock_generate.return_value = {
         "short_form": "Short",
         "long_form": "Long",
@@ -418,7 +418,7 @@ def test_generate_content_with_minimal_request(
     """Test content generation with minimal required fields only."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     mock_generate.return_value = {
         "short_form": "Short",
         "long_form": "Long",
@@ -516,7 +516,7 @@ def test_generate_content_response_includes_variants(
     """Test that response includes variants array with calculated statistics."""
     # TODO: Remove this mock when settings.serve_actual_generation check is removed
     mock_settings.serve_actual_generation = True
-    
+
     mock_generate.return_value = {
         "short_form": "Short form content here",
         "long_form": "Long form content with more words here",

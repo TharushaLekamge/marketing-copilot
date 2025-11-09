@@ -58,7 +58,7 @@ class Settings(BaseSettings):
         alias="OPENAI_API_KEY",
     )
     openai_chat_model_id: str | None = Field(
-        default="gpt-3.5-turbo-instruct",
+        default="gpt-4o",
         description="OpenAI chat model ID (e.g., gpt-4, gpt-3.5-turbo)",
         alias="OPENAI_CHAT_MODEL_ID",
     )

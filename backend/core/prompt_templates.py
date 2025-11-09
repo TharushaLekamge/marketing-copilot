@@ -20,6 +20,7 @@ def get_content_generation_system_prompt(
  effective marketing content that aligns with brand guidelines and resonates with target audiences.
 
 Guidelines:
+- OUTPUT IN ALL UPPERCASE LETTERS
 - Write in a clear, professional, and engaging tone
 - Focus on the audience's needs and interests
 - Include compelling calls-to-action when appropriate

@@ -1,30 +1,36 @@
 """Semantic Kernel prompt templates for content generation."""
 
 # These are prompt templates that will be used by Semantic Kernel
-# They use Semantic Kernel's template syntax with {{variables}}
+# They use Handlebars template syntax with {{variables}}
 
-SHORT_FORM_TEMPLATE = """Generate a short-form social media post based on this brief:
+SHORT_FORM_TEMPLATE = """
+<message role="system">{{system_message}}</message>
 
-Brief: {{$brief}}
+Generate a short-form social media post based on this brief:
+
+Brief: {{brief}}
 
 Requirements:
-- Maximum 280 characters
+- Maximum 100 characters
 - Engaging and attention-grabbing
 - Include relevant hashtags if appropriate
 - Clear call-to-action
 - Optimized for social media engagement
 
-{% if $brand_tone %}
-Brand Tone: {{$brand_tone}}
-{% endif %}
+{{#if brand_tone}}
+Brand Tone: {{brand_tone}}
+{{/if}}
 
-{% if $context %}
-Context: {{$context}}
-{% endif %}"""
+{{#if context}}
+Context: {{context}}
+{{/if}}"""
 
-LONG_FORM_TEMPLATE = """Generate a long-form marketing post based on this brief:
+LONG_FORM_TEMPLATE = """
+<message role="system">{{system_message}}</message>
 
-Brief: {{$brief}}
+Generate a long-form marketing post based on this brief:
+
+Brief: {{brief}}
 
 Requirements:
 - 150-300 words
@@ -34,17 +40,20 @@ Requirements:
 - Include key messaging points
 - Professional yet approachable tone
 
-{% if $brand_tone %}
-Brand Tone: {{$brand_tone}}
-{% endif %}
+{{#if brand_tone}}
+Brand Tone: {{brand_tone}}
+{{/if}}
 
-{% if $context %}
-Context: {{$context}}
-{% endif %}"""
+{{#if context}}
+Context: {{context}}
+{{/if}}"""
 
-CTA_TEMPLATE = """Generate a call-to-action focused marketing message based on this brief:
+CTA_TEMPLATE = """
+<message role="system">{{system_message}}</message>
 
-Brief: {{$brief}}
+Generate a call-to-action focused marketing message based on this brief:
+
+Brief: {{brief}}
 
 Requirements:
 - Compelling subject line (if email) or headline
@@ -54,10 +63,10 @@ Requirements:
 - Concise but persuasive
 - Include specific next steps
 
-{% if $brand_tone %}
-Brand Tone: {{$brand_tone}}
-{% endif %}
+{{#if brand_tone}}
+Brand Tone: {{brand_tone}}
+{{/if}}
 
-{% if $context %}
-Context: {{$context}}
-{% endif %}"""
+{{#if context}}
+Context: {{context}}
+{{/if}}"""

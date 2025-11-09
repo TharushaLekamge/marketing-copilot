@@ -1,14 +1,18 @@
 """Content generation orchestration using Semantic Kernel."""
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+import semantic_kernel
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
-from semantic_kernel.contents import ChatHistory
-from semantic_kernel.functions import KernelArguments
-from semantic_kernel.prompt_template import PromptTemplateConfig
+from semantic_kernel.contents import AuthorRole, ChatHistory, ChatMessageContent
+from semantic_kernel.functions import KernelArguments, KernelFunctionFromPrompt
+from semantic_kernel.connectors.ai.open_ai import OpenAIChatPromptExecutionSettings
+
+# print version of semantic kernel
 
 from backend.config import settings
 from backend.core.prompt_templates import (
@@ -22,6 +26,8 @@ from backend.core.sk_plugins.content_generation import (
 )
 
 logger = logging.getLogger(__name__)
+
+logger.info(f"Semantic Kernel version: {semantic_kernel.__version__}")
 
 
 class GenerationError(Exception):
@@ -40,11 +46,9 @@ class ContentGenerationOrchestrator:
             api_key: OpenAI API key (defaults to settings.openai_api_key)
             model: OpenAI model name (defaults to settings.openai_chat_model_id)
         """
-
         self.kernel = Kernel()
         self.api_key = api_key or settings.openai_api_key
-        self.model = model or settings.openai_chat_model_id or "gpt-3.5-turbo-instruct"
-        logger.info(f"Using OpenAI API key: {self.api_key}")
+        self.model = model or settings.openai_chat_model_id or "gpt-4o"
 
         # Use Semantic Kernel's native OpenAIChatCompletion
         openai_service = OpenAIChatCompletion(
@@ -53,31 +57,29 @@ class ContentGenerationOrchestrator:
         )
         self.kernel.add_service(openai_service)
 
-        # Create prompt template config (reusable)
-        prompt_config = PromptTemplateConfig(
-            template_format="handlebars",
-        )
+        # Create execution settings with max tokens limit for testing
+        execution_settings = OpenAIChatPromptExecutionSettings()
 
         # Register functions once during initialization (reusable)
-        self.short_form_func = self.kernel.add_function(
+        self.short_form_func = KernelFunctionFromPrompt(
             function_name="generate_short_form",
-            plugin_name="ContentGeneration",
             prompt=SHORT_FORM_TEMPLATE,
-            prompt_template_config=prompt_config,
+            template_format="handlebars",
+            prompt_execution_settings=execution_settings,
         )
 
-        self.long_form_func = self.kernel.add_function(
+        self.long_form_func = KernelFunctionFromPrompt(
             function_name="generate_long_form",
-            plugin_name="ContentGeneration",
             prompt=LONG_FORM_TEMPLATE,
-            prompt_template_config=prompt_config,
+            template_format="handlebars",
+            prompt_execution_settings=execution_settings,
         )
 
-        self.cta_func = self.kernel.add_function(
+        self.cta_func = KernelFunctionFromPrompt(
             function_name="generate_cta",
-            plugin_name="ContentGeneration",
             prompt=CTA_TEMPLATE,
-            prompt_template_config=prompt_config,
+            template_format="handlebars",
+            prompt_execution_settings=execution_settings,
         )
 
     async def generate_variants(
@@ -125,38 +127,36 @@ class ContentGenerationOrchestrator:
 
             # Prepare arguments for Semantic Kernel
             args = KernelArguments(
+                system_message=system_prompt,
                 brief=brief,
                 brand_tone=brand_tone or "",
                 context=project_context or "",
             )
 
-            # Create chat history with system prompt
-            chat_history = ChatHistory()
-            chat_history.add_system_message(system_prompt)
-
-            # Invoke pre-registered functions (reused from __init__)
+            # Generate short-form content
             short_form_result = await self.kernel.invoke(
                 function=self.short_form_func,
                 arguments=args,
-                chat_history=chat_history,
             )
 
+            # Generate long-form content
             long_form_result = await self.kernel.invoke(
                 function=self.long_form_func,
                 arguments=args,
-                chat_history=chat_history,
             )
 
+            # Generate CTA content
             cta_result = await self.kernel.invoke(
                 function=self.cta_func,
                 arguments=args,
-                chat_history=chat_history,
             )
 
-            # Extract results
-            short_form = str(short_form_result.value).strip()
-            long_form = str(long_form_result.value).strip()
-            cta = str(cta_result.value).strip()
+            # Extract results from function invocations
+            short_form = (
+                str(short_form_result.value[0].content) if short_form_result and short_form_result.value else ""
+            )
+            long_form = str(long_form_result.value[0].content) if long_form_result and long_form_result.value else ""
+            cta = str(cta_result.value[0].content) if cta_result and cta_result.value else ""
 
             # Get metadata
             metadata = {
