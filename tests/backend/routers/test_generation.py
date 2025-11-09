@@ -19,8 +19,8 @@ def test_generate_content_success(mock_generate: AsyncMock, test_client: TestCli
         "long_form": "We're excited to introduce our latest innovation that will revolutionize the way you work...",
         "cta": "Click here to learn more and get started today!",
         "metadata": {
-            "model": "llama3.2",
-            "base_url": "http://localhost:11434",
+            "model": "gpt-3.5-turbo-instruct",
+            "provider": "openai",
             "project_id": None,
         },
     }
@@ -62,7 +62,7 @@ def test_generate_content_success(mock_generate: AsyncMock, test_client: TestCli
         == "We're excited to introduce our latest innovation that will revolutionize the way you work..."
     )
     assert data["cta"] == "Click here to learn more and get started today!"
-    assert data["metadata"]["model"] == "llama3.2"
+    assert data["metadata"]["model"] == "gpt-3.5-turbo-instruct"
     assert data["metadata"]["project_id"] == str(project.id)
     assert "variants" in data
 
@@ -70,7 +70,7 @@ def test_generate_content_success(mock_generate: AsyncMock, test_client: TestCli
     record = test_db_session.query(GenerationRecord).filter(GenerationRecord.project_id == project.id).first()
     assert record is not None
     assert record.user_id == user.id
-    assert record.model == "llama3.2"
+    assert record.model == "gpt-3.5-turbo-instruct"
     assert "Launch a new product campaign" in record.prompt
 
     # Verify generate_content_variants was called with correct arguments
@@ -91,7 +91,7 @@ def test_generate_content_with_all_optional_fields(
         "short_form": "Short content",
         "long_form": "Long content",
         "cta": "CTA content",
-        "metadata": {"model": "llama3.2", "base_url": "http://localhost:11434"},
+        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
     }
 
     user, token = create_user(
@@ -139,7 +139,7 @@ def test_generate_content_with_assets(mock_generate: AsyncMock, test_client: Tes
         "short_form": "Short content",
         "long_form": "Long content",
         "cta": "CTA content",
-        "metadata": {"model": "llama3.2", "base_url": "http://localhost:11434"},
+        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
     }
 
     user, token = create_user(
@@ -338,7 +338,7 @@ def test_generate_content_creates_generation_record(
         "short_form": "Short",
         "long_form": "Long",
         "cta": "CTA",
-        "metadata": {"model": "llama3.2", "base_url": "http://localhost:11434"},
+        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
     }
 
     user, token = create_user(
@@ -371,7 +371,7 @@ def test_generate_content_creates_generation_record(
     assert record is not None
     assert record.user_id == user.id
     assert record.project_id == project.id
-    assert record.model == "llama3.2"
+    assert record.model == "gpt-3.5-turbo-instruct"
     assert record.response["short_form"] == "Short"
     assert record.response["long_form"] == "Long"
     assert record.response["cta"] == "CTA"
@@ -388,7 +388,7 @@ def test_generate_content_with_minimal_request(
         "short_form": "Short",
         "long_form": "Long",
         "cta": "CTA",
-        "metadata": {"model": "llama3.2", "base_url": "http://localhost:11434"},
+        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
     }
 
     user, token = create_user(
@@ -482,7 +482,7 @@ def test_generate_content_response_includes_variants(
         "short_form": "Short form content here",
         "long_form": "Long form content with more words here",
         "cta": "CTA content",
-        "metadata": {"model": "llama3.2", "base_url": "http://localhost:11434"},
+        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
     }
 
     user, token = create_user(
