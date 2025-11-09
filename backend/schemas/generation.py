@@ -68,3 +68,19 @@ class GenerationResponse(BaseModel):
             ),
         ]
         object.__setattr__(self, "variants", variants)
+
+
+class GenerationUpdateRequest(BaseModel):
+    """Request schema for updating generated content."""
+
+    project_id: UUID = Field(..., description="ID of the project")
+    short_form: Optional[str] = Field(None, description="Updated short-form content")
+    long_form: Optional[str] = Field(None, description="Updated long-form content")
+    cta: Optional[str] = Field(None, description="Updated CTA content")
+
+
+class GenerationUpdateResponse(BaseModel):
+    """Response schema for content update."""
+
+    message: str = Field(..., description="Success message")
+    updated: GenerationResponse = Field(..., description="Updated generation response")

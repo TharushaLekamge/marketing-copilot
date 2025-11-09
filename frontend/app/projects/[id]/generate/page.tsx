@@ -6,6 +6,7 @@ import {
   apiClient,
   GenerationRequest,
   GenerationResponse,
+  GenerationUpdateRequest,
   Project,
 } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -22,7 +23,9 @@ export default function GeneratePage({
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<GenerationResponse | null>(null);
 
   // Form state
@@ -103,17 +106,48 @@ export default function GeneratePage({
     setChannels(channels.filter((c) => c !== channel));
   };
 
-  const handleEditVariant = (variantType: string, content: string) => {
+  const handleEditVariant = async (variantType: string, content: string) => {
     if (!response) return;
 
-    const updatedResponse: GenerationResponse = {
-      ...response,
-      short_form: variantType === "short_form" ? content : response.short_form,
-      long_form: variantType === "long_form" ? content : response.long_form,
-      cta: variantType === "cta" ? content : response.cta,
-    };
+    try {
+      setUpdating(true);
+      setError(null);
+      setSuccessMessage(null);
 
-    setResponse(updatedResponse);
+      // Update local state immediately for better UX
+      const updatedResponse: GenerationResponse = {
+        ...response,
+        short_form: variantType === "short_form" ? content : response.short_form,
+        long_form: variantType === "long_form" ? content : response.long_form,
+        cta: variantType === "cta" ? content : response.cta,
+      };
+      setResponse(updatedResponse);
+
+      // Call API to save the update
+      const updateRequest: GenerationUpdateRequest = {
+        project_id: id,
+        short_form: updatedResponse.short_form,
+        long_form: updatedResponse.long_form,
+        cta: updatedResponse.cta,
+      };
+
+      const result = await apiClient.updateGeneratedContent(updateRequest);
+      
+      // Update with server response
+      setResponse(result.updated);
+      setSuccessMessage(result.message);
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update content");
+      // Revert to original response on error
+      // Note: In a real app, you might want to keep the edited version and show a retry option
+    } finally {
+      setUpdating(false);
+    }
   };
 
   if (authLoading || loading) {
@@ -169,6 +203,12 @@ export default function GeneratePage({
         {error && (
           <div className="mb-4 rounded-md bg-red-50 p-4">
             <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-4 rounded-md bg-green-50 p-4">
+            <p className="text-sm text-green-800">{successMessage}</p>
           </div>
         )}
 
@@ -348,6 +388,7 @@ export default function GeneratePage({
               <ContentVariants
                 response={response}
                 onEdit={handleEditVariant}
+                isUpdating={updating}
               />
             </div>
           </div>

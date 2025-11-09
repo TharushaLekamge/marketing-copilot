@@ -87,6 +87,18 @@ export interface GenerationResponse {
   variants?: ContentVariant[] | null;
 }
 
+export interface GenerationUpdateRequest {
+  project_id: string;
+  short_form?: string | null;
+  long_form?: string | null;
+  cta?: string | null;
+}
+
+export interface GenerationUpdateResponse {
+  message: string;
+  updated: GenerationResponse;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -122,14 +134,19 @@ class ApiClient {
       try {
         const error = await response.json();
         // Handle different error response formats
-        errorMessage =
+        const extractedMessage =
           error.detail ||
           error.message ||
           error.error ||
-          (typeof error === "string" ? error : response.statusText);
+          (typeof error === "string" ? error : null);
+        errorMessage = extractedMessage || response.statusText || "An error occurred";
       } catch {
         // If JSON parsing fails, use status text
         errorMessage = response.statusText || "An error occurred";
+      }
+      // Ensure errorMessage is always a non-empty string
+      if (!errorMessage || errorMessage.trim() === "") {
+        errorMessage = "An error occurred";
       }
       throw new Error(errorMessage);
     }
@@ -268,14 +285,19 @@ class ApiClient {
       try {
         const error = await response.json();
         // Handle different error response formats
-        errorMessage =
+        const extractedMessage =
           error.detail ||
           error.message ||
           error.error ||
-          (typeof error === "string" ? error : response.statusText);
+          (typeof error === "string" ? error : null);
+        errorMessage = extractedMessage || response.statusText || "An error occurred";
       } catch {
         // If JSON parsing fails, use status text
         errorMessage = response.statusText || "An error occurred";
+      }
+      // Ensure errorMessage is always a non-empty string
+      if (!errorMessage || errorMessage.trim() === "") {
+        errorMessage = "An error occurred";
       }
       throw new Error(errorMessage);
     }
@@ -287,6 +309,15 @@ class ApiClient {
   async generateContent(data: GenerationRequest): Promise<GenerationResponse> {
     return this.request<GenerationResponse>("/api/generate", {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateGeneratedContent(
+    data: GenerationUpdateRequest
+  ): Promise<GenerationUpdateResponse> {
+    return this.request<GenerationUpdateResponse>("/api/generate/update", {
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }

@@ -5,12 +5,14 @@ import { useState } from "react";
 
 interface ContentVariantsProps {
   response: GenerationResponse;
-  onEdit?: (variantType: string, content: string) => void;
+  onEdit?: (variantType: string, content: string) => void | Promise<void>;
+  isUpdating?: boolean;
 }
 
 export default function ContentVariants({
   response,
   onEdit,
+  isUpdating = false,
 }: ContentVariantsProps) {
   const [editing, setEditing] = useState<{
     variantType: string;
@@ -21,9 +23,9 @@ export default function ContentVariants({
     setEditing({ variantType, content });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (editing && onEdit) {
-      onEdit(editing.variantType, editing.content);
+      await onEdit(editing.variantType, editing.content);
     }
     setEditing(null);
   };
@@ -140,9 +142,10 @@ export default function ContentVariants({
                 <div className="flex gap-2">
                   <button
                     onClick={handleSave}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    disabled={isUpdating}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Save
+                    {isUpdating ? "Saving..." : "Save"}
                   </button>
                   <button
                     onClick={handleCancel}
