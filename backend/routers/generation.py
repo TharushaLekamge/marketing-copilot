@@ -149,6 +149,88 @@ async def generate_content(
         ) from e
 
 
+@router.get("/{generation_id}", response_model=GenerationResponse, status_code=status.HTTP_200_OK)
+async def get_generation_record(
+    generation_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> GenerationResponse:
+    """Get a single generation record by ID.
+
+    Args:
+        generation_id: ID of the generation record to retrieve
+        current_user: Current authenticated user
+        db: Database session
+
+    Returns:
+        GenerationResponse: Generation record with content variants and metadata
+
+    Raises:
+        HTTPException: If generation record not found or user doesn't own the project
+    """
+    # Find the generation record
+    generation_record = db.query(GenerationRecord).filter(GenerationRecord.id == generation_id).first()
+
+    if generation_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Generation record not found",
+        )
+
+    # Validate project exists and user owns it
+    project = db.query(Project).filter(Project.id == generation_record.project_id).first()
+
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    if project.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this generation record",
+        )
+
+    # Extract response data
+    response_data = generation_record.response or {}
+    short_form = response_data.get("short_form", "")
+    long_form = response_data.get("long_form", "")
+    cta = response_data.get("cta", "")
+
+    # Extract token usage information if available
+    tokens_used = None
+    if generation_record.tokens:
+        if isinstance(generation_record.tokens, dict):
+            prompt_tokens = generation_record.tokens.get("prompt", 0)
+            completion_tokens = generation_record.tokens.get("completion", 0)
+            tokens_used = prompt_tokens + completion_tokens
+        elif isinstance(generation_record.tokens, int):
+            tokens_used = generation_record.tokens
+
+    # Build response
+    response = GenerationResponse(
+        generation_id=generation_record.id,
+        short_form=short_form,
+        long_form=long_form,
+        cta=cta,
+        metadata={
+            "model": generation_record.model,
+            "model_info": {"base_url": ""},  # Base URL not stored in generation record
+            "project_id": str(generation_record.project_id),
+            "tokens_used": tokens_used,
+            "generation_time": None,  # Generation time not stored in generation record
+        },
+    )
+
+    logger.info(
+        f"Retrieved generation record {generation_id} "
+        f"(project {generation_record.project_id}) by user {current_user.id}"
+    )
+
+    return response
+
+
 @router.patch("/{generation_id}", response_model=GenerationUpdateResponse, status_code=status.HTTP_200_OK)
 async def update_generated_content(
     generation_id: UUID,
