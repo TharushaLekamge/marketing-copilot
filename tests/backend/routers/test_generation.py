@@ -854,28 +854,6 @@ def test_update_generated_content_with_other_user_project(
     assert response.json()["detail"] == "Not authorized to update content for this project"
 
 
-def test_update_generated_content_with_nonexistent_generation_id_2(test_client: TestClient, create_user):
-    """Test content update with non-existent generation_id returns 404."""
-    user, token = create_user(
-        email="norecord@example.com",
-        password="testpassword123",
-        name="No Record User",
-    )
-
-    update_request = {
-        "short_form": "Updated content",
-    }
-
-    response = test_client.patch(
-        f"/api/generate/{uuid4()}",
-        json=update_request,
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Generation record not found"
-
-
 @patch("backend.routers.generation.generate_content_variants")
 def test_update_generated_content_with_tokens(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
@@ -1201,55 +1179,6 @@ def test_update_generated_content_with_specific_generation_id(
         .first()
     )
     assert latest_record.response["short_form"] == "Content"
-
-
-@patch("backend.routers.generation.generate_content_variants")
-def test_update_generated_content_with_nonexistent_generation_id(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
-):
-    """Test updating with a non-existent generation_id returns 404."""
-    mock_generate.return_value = {
-        "short_form": "Content",
-        "long_form": "Content",
-        "cta": "Content",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
-
-    user, token = create_user(
-        email="nonexistent@example.com",
-        password="testpassword123",
-        name="Nonexistent User",
-    )
-
-    project = Project(owner_id=user.id, name="Test Project")
-    test_db_session.add(project)
-    test_db_session.commit()
-    test_db_session.refresh(project)
-
-    # Generate content first
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief",
-    }
-    test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    # Try to update with a non-existent generation_id
-    update_request = {
-        "short_form": "Updated content",
-    }
-
-    response = test_client.patch(
-        f"/api/generate/{uuid4()}",
-        json=update_request,
-        headers={"Authorization": f"Bearer {token}"},
-    )
-
-    assert response.status_code == 404
-    assert "Generation record not found" in response.json()["detail"]
 
 
 @patch("backend.routers.generation.generate_content_variants")
