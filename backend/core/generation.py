@@ -59,6 +59,7 @@ class ContentGenerationOrchestrator:
 
         # Create execution settings with max tokens limit for testing
         execution_settings = OpenAIChatPromptExecutionSettings()
+        execution_settings.max_tokens = 150
 
         # Register functions once during initialization (reusable)
         self.short_form_func = KernelFunctionFromPrompt(
