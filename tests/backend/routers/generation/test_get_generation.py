@@ -8,9 +8,7 @@ from fastapi.testclient import TestClient
 
 
 @patch("backend.routers.generation.generate_content_variants")
-def test_get_generation_record_success(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
-):
+def test_get_generation_record_success(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
     """Test successful retrieval of a generation record."""
     mock_generate.return_value = {
         "short_form": "Short form content",
