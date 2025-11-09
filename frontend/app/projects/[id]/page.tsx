@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { apiClient, Asset, Project } from "@/lib/api";
+import { apiClient, Asset, GenerationResponse, Project } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -15,6 +15,7 @@ export default function ProjectDetailPage({
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [generationRecords, setGenerationRecords] = useState<GenerationResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +51,20 @@ export default function ProjectDetailPage({
     }
   }, [id]);
 
+  const loadGenerationRecords = useCallback(async () => {
+    try {
+      const data = await apiClient.getGenerationRecords(id);
+      setGenerationRecords(data);
+    } catch (err) {
+      console.error("Failed to load generation records:", err);
+    }
+  }, [id]);
+
   useEffect(() => {
     if (user && id) {
-      Promise.all([loadProject(), loadAssets()]);
+      Promise.all([loadProject(), loadAssets(), loadGenerationRecords()]);
     }
-  }, [user, id, loadProject, loadAssets]);
+  }, [user, id, loadProject, loadAssets, loadGenerationRecords]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -290,6 +300,67 @@ export default function ProjectDetailPage({
                             Delete
                           </button>
                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Generation Records Section */}
+        <div className="mt-6 rounded-lg bg-white p-6 shadow">
+          <div className="mb-6 flex items-center justify-between">
+            <h3 className="text-2xl font-bold text-gray-900">Generation Records</h3>
+          </div>
+
+          {generationRecords.length === 0 ? (
+            <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
+              <p className="text-lg text-gray-600">
+                No generation records yet. Generate your first content to get started!
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Model
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Short Form Preview
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Tokens
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {generationRecords.map((record) => (
+                    <tr key={record.generation_id} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
+                        {record.metadata.model}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        <div className="max-w-md truncate">
+                          {record.short_form || "N/A"}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                        {record.metadata.tokens_used || "N/A"}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                        <button
+                          onClick={() => router.push(`/projects/${id}/generations/${record.generation_id}`)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          View
+                        </button>
                       </td>
                     </tr>
                   ))}

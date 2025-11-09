@@ -80,6 +80,7 @@ export interface GenerationMetadata {
 }
 
 export interface GenerationResponse {
+  generation_id: string;
   short_form: string;
   long_form: string;
   cta: string;
@@ -88,7 +89,6 @@ export interface GenerationResponse {
 }
 
 export interface GenerationUpdateRequest {
-  project_id: string;
   short_form?: string | null;
   long_form?: string | null;
   cta?: string | null;
@@ -139,7 +139,14 @@ class ApiClient {
           error.message ||
           error.error ||
           (typeof error === "string" ? error : null);
-        errorMessage = extractedMessage || response.statusText || "An error occurred";
+        // Ensure extractedMessage is converted to a string
+        if (extractedMessage !== null && extractedMessage !== undefined) {
+          errorMessage = typeof extractedMessage === "string" 
+            ? extractedMessage 
+            : String(extractedMessage);
+        } else {
+          errorMessage = response.statusText || "An error occurred";
+        }
       } catch {
         // If JSON parsing fails, use status text
         errorMessage = response.statusText || "An error occurred";
@@ -290,7 +297,14 @@ class ApiClient {
           error.message ||
           error.error ||
           (typeof error === "string" ? error : null);
-        errorMessage = extractedMessage || response.statusText || "An error occurred";
+        // Ensure extractedMessage is converted to a string
+        if (extractedMessage !== null && extractedMessage !== undefined) {
+          errorMessage = typeof extractedMessage === "string" 
+            ? extractedMessage 
+            : String(extractedMessage);
+        } else {
+          errorMessage = response.statusText || "An error occurred";
+        }
       } catch {
         // If JSON parsing fails, use status text
         errorMessage = response.statusText || "An error occurred";
@@ -309,6 +323,24 @@ class ApiClient {
   async generateContent(data: GenerationRequest): Promise<GenerationResponse> {
     return this.request<GenerationResponse>("/api/generate", {
       method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getGenerationRecords(projectId: string): Promise<GenerationResponse[]> {
+    return this.request<GenerationResponse[]>(`/api/projects/${projectId}/generation-records`);
+  }
+
+  async getGenerationRecord(generationId: string): Promise<GenerationResponse> {
+    return this.request<GenerationResponse>(`/api/generate/${generationId}`);
+  }
+
+  async updateGenerationRecord(
+    generationId: string,
+    data: GenerationUpdateRequest
+  ): Promise<GenerationUpdateResponse> {
+    return this.request<GenerationUpdateResponse>(`/api/generate/${generationId}`, {
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
