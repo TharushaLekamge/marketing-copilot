@@ -6,6 +6,7 @@ README.md
 .env.*
 node_modules
 .venv
+.venv-win
 venv
 __pycache__
 *.pyc

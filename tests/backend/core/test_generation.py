@@ -58,8 +58,8 @@ def mock_kernel():
 
 
 @pytest.fixture
-def mock_ollama_service():
-    """Create a mock OllamaChatCompletion service."""
+def mock_openai_service():
+    """Create a mock OpenAIChatCompletion service."""
     return MagicMock()
 
 
@@ -73,18 +73,24 @@ class TestContentGenerationOrchestratorInit:
     """Tests for ContentGenerationOrchestrator initialization."""
 
     @patch("backend.core.generation.Kernel")
-    @patch("backend.core.generation.OllamaChatCompletion")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
     def test__init__uses_default_settings(
         self,
-        mock_ollama_class: MagicMock,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
         mock_kernel_class: MagicMock,
     ):
         """Test initialization with default settings."""
         mock_kernel = MagicMock()
         mock_kernel_class.return_value = mock_kernel
 
-        mock_ollama_service = MagicMock()
-        mock_ollama_class.return_value = mock_ollama_service
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
         # Mock add_function to return mock functions
         def mock_add_function(*args, **kwargs):
@@ -99,39 +105,39 @@ class TestContentGenerationOrchestratorInit:
         # Verify Kernel was created
         mock_kernel_class.assert_called_once()
 
-        # Verify OllamaChatCompletion was created with default settings
-        mock_ollama_class.assert_called_once()
-        call_args = mock_ollama_class.call_args
-        assert call_args.kwargs["host"] == "http://localhost:11434"
-        assert call_args.kwargs["ai_model_id"] == "qwen3vl:4b"
+        # Verify OpenAIChatCompletion was created with default settings
+        mock_openai_class.assert_called_once()
+        call_args = mock_openai_class.call_args
+        assert call_args.kwargs["api_key"] == "test-api-key"
+        assert call_args.kwargs["ai_model_id"] == "gpt-3.5-turbo-instruct"
 
         # Verify service was added to kernel
-        mock_kernel.add_service.assert_called_once_with(mock_ollama_service)
+        mock_kernel.add_service.assert_called_once_with(mock_openai_service)
 
         # Verify functions were registered
         assert mock_kernel.add_function.call_count == 3
 
         # Verify instance attributes
         assert orchestrator.kernel == mock_kernel
-        assert orchestrator.base_url == "http://localhost:11434"
-        assert orchestrator.model == "qwen3vl:4b"
+        assert orchestrator.api_key == "test-api-key"
+        assert orchestrator.model == "gpt-3.5-turbo-instruct"
         assert orchestrator.short_form_func is not None
         assert orchestrator.long_form_func is not None
         assert orchestrator.cta_func is not None
 
     @patch("backend.core.generation.Kernel")
-    @patch("backend.core.generation.OllamaChatCompletion")
+    @patch("backend.core.generation.OpenAIChatCompletion")
     def test__init__uses_custom_parameters(
         self,
-        mock_ollama_class: MagicMock,
+        mock_openai_class: MagicMock,
         mock_kernel_class: MagicMock,
     ):
         """Test initialization with custom parameters."""
         mock_kernel = MagicMock()
         mock_kernel_class.return_value = mock_kernel
 
-        mock_ollama_service = MagicMock()
-        mock_ollama_class.return_value = mock_ollama_service
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
 
         # Mock add_function
         def mock_add_function(*args, **kwargs):
@@ -141,21 +147,21 @@ class TestContentGenerationOrchestratorInit:
 
         mock_kernel.add_function = Mock(side_effect=mock_add_function)
 
-        custom_base_url = "http://custom-ollama:11434"
-        custom_model = "custom-model"
+        custom_api_key = "custom-api-key"
+        custom_model = "gpt-4"
 
         orchestrator = ContentGenerationOrchestrator(
-            base_url=custom_base_url,
+            api_key=custom_api_key,
             model=custom_model,
         )
 
-        # Verify OllamaChatCompletion was created with custom settings
-        call_args = mock_ollama_class.call_args
-        assert call_args.kwargs["host"] == custom_base_url
+        # Verify OpenAIChatCompletion was created with custom settings
+        call_args = mock_openai_class.call_args
+        assert call_args.kwargs["api_key"] == custom_api_key
         assert call_args.kwargs["ai_model_id"] == custom_model
 
         # Verify instance attributes
-        assert orchestrator.base_url == custom_base_url
+        assert orchestrator.api_key == custom_api_key
         assert orchestrator.model == custom_model
 
 
@@ -166,10 +172,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
     @patch("backend.core.generation.build_project_context")
     @patch("backend.core.generation.get_content_generation_system_prompt")
     @patch("backend.core.generation.Kernel")
-    @patch("backend.core.generation.OllamaChatCompletion")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
     async def test__generate_variants__success(
         self,
-        mock_ollama_class: MagicMock,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
         mock_kernel_class: MagicMock,
         mock_get_system_prompt: MagicMock,
         mock_build_context: MagicMock,
@@ -180,8 +188,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_kernel = MagicMock()
         mock_kernel_class.return_value = mock_kernel
 
-        mock_ollama_service = MagicMock()
-        mock_ollama_class.return_value = mock_ollama_service
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
         # Mock function results
         short_form_result = MagicMock()
@@ -238,8 +250,8 @@ class TestContentGenerationOrchestratorGenerateVariants:
         assert result["short_form"] == "Check out our new product! #innovation"
         assert result["long_form"] == "We're excited to introduce our latest innovation..."
         assert result["cta"] == "Click here to learn more!"
-        assert result["metadata"]["model"] == "qwen3vl:4b"
-        assert result["metadata"]["base_url"] == "http://localhost:11434"
+        assert result["metadata"]["model"] == "gpt-3.5-turbo-instruct"
+        assert result["metadata"]["provider"] == "openai"
         assert result["metadata"]["project_id"] == str(sample_project_id)
 
         # Verify context building was called
@@ -259,10 +271,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
     @patch("backend.core.generation.build_project_context")
     @patch("backend.core.generation.get_content_generation_system_prompt")
     @patch("backend.core.generation.Kernel")
-    @patch("backend.core.generation.OllamaChatCompletion")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
     async def test__generate_variants__minimal_parameters(
         self,
-        mock_ollama_class: MagicMock,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
         mock_kernel_class: MagicMock,
         mock_get_system_prompt: MagicMock,
         mock_build_context: MagicMock,
@@ -272,8 +286,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_kernel = MagicMock()
         mock_kernel_class.return_value = mock_kernel
 
-        mock_ollama_service = MagicMock()
-        mock_ollama_class.return_value = mock_ollama_service
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
         # Mock function results
         short_form_result = MagicMock()
@@ -328,10 +346,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
 
     @pytest.mark.asyncio
     @patch("backend.core.generation.Kernel")
-    @patch("backend.core.generation.OllamaChatCompletion")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
     async def test__generate_variants__kernel_error(
         self,
-        mock_ollama_class: MagicMock,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
         mock_kernel_class: MagicMock,
     ):
         """Test generation when kernel.invoke raises an error."""
@@ -339,8 +359,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_kernel = MagicMock()
         mock_kernel_class.return_value = mock_kernel
 
-        mock_ollama_service = MagicMock()
-        mock_ollama_class.return_value = mock_ollama_service
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
         # Mock kernel.invoke to raise an error
         mock_kernel.invoke = AsyncMock(side_effect=Exception("Kernel error"))
@@ -362,10 +386,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
     @patch("backend.core.generation.build_project_context")
     @patch("backend.core.generation.get_content_generation_system_prompt")
     @patch("backend.core.generation.Kernel")
-    @patch("backend.core.generation.OllamaChatCompletion")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
     async def test__generate_variants__with_brand_tone_only(
         self,
-        mock_ollama_class: MagicMock,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
         mock_kernel_class: MagicMock,
         mock_get_system_prompt: MagicMock,
         mock_build_context: MagicMock,
@@ -375,8 +401,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_kernel = MagicMock()
         mock_kernel_class.return_value = mock_kernel
 
-        mock_ollama_service = MagicMock()
-        mock_ollama_class.return_value = mock_ollama_service
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
 
         # Mock function results
         short_form_result = MagicMock()
@@ -482,7 +512,7 @@ class TestGenerateContentVariants:
         self,
         mock_orchestrator_class: MagicMock,
     ):
-        """Test convenience function with custom base_url and model."""
+        """Test convenience function with custom api_key and model."""
         # Setup mock orchestrator
         mock_orchestrator = MagicMock()
         mock_orchestrator_class.return_value = mock_orchestrator
@@ -491,7 +521,7 @@ class TestGenerateContentVariants:
             "short_form": "Short content",
             "long_form": "Long content",
             "cta": "CTA content",
-            "metadata": {"model": "custom-model"},
+            "metadata": {"model": "gpt-4"},
         }
 
         mock_orchestrator.generate_variants = AsyncMock(return_value=expected_result)
@@ -499,14 +529,14 @@ class TestGenerateContentVariants:
         # Call convenience function with custom config
         result = await generate_content_variants(
             brief="Test brief",
-            base_url="http://custom:11434",
-            model="custom-model",
+            api_key="custom-api-key",
+            model="gpt-4",
         )
 
         # Verify orchestrator was created with custom config
         call_args = mock_orchestrator_class.call_args
-        assert call_args.kwargs["base_url"] == "http://custom:11434"
-        assert call_args.kwargs["model"] == "custom-model"
+        assert call_args.kwargs["api_key"] == "custom-api-key"
+        assert call_args.kwargs["model"] == "gpt-4"
 
         # Verify result
         assert result == expected_result
