@@ -79,6 +79,7 @@ def test_get_generation_record_not_found(test_client: TestClient, create_user):
 
 # TODO: To be moved to projects after completion
 
+
 @patch("backend.routers.generation.generate_content_variants")
 def test_list_generation_records_success(
     mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session

@@ -24,6 +24,11 @@ Marketing Copilot is a full-stack application built with:
   - Response: `200 OK` with JWT access token and user information
   - Returns `401 Unauthorized` for invalid credentials
 
+- **GET** `/api/auth/me` - Get current authenticated user information
+  - Response: `200 OK` with current user information
+  - Returns `403 Forbidden` if user is not authenticated
+  - Requires authentication
+
 ### Projects
 
 All project endpoints require authentication via Bearer token in the Authorization header.
@@ -42,7 +47,20 @@ All project endpoints require authentication via Bearer token in the Authorizati
   - Response: `200 OK` with project information
   - Returns `404 Not Found` if project doesn't exist or user doesn't have access
   - Returns `403 Forbidden` if user doesn't own the project
+  - Returns `400 Bad Request` if project_id format is invalid
   - Requires authentication
+
+- **GET** `/api/projects/{project_id}/generation-records` - List all generation records for a project
+  - Response: `200 OK` with list of generation records (ordered by created_at desc)
+  - Returns `404 Not Found` if project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Returns `400 Bad Request` if project_id format is invalid
+  - Requires authentication
+  - Each generation record includes:
+    - `generation_id`: UUID of the generation record
+    - `short_form`, `long_form`, `cta`: Content variants
+    - `metadata`: Model information, project_id, tokens_used
+    - `variants`: Array with variant statistics (character_count, word_count)
 
 - **PATCH** `/api/projects/{project_id}` - Update a project
   - Request: `{ "name": "Updated Name", "description": "Updated description" }` (all fields optional)
@@ -153,6 +171,37 @@ All content generation endpoints require authentication via Bearer token in the 
   - Requires authentication
   - Uses project assets (if ingested) for context during generation
   - Creates a generation record in the database for tracking
+
+- **GET** `/api/generate/{generation_id}` - Get a single generation record by ID
+  - Response: `200 OK` with generation record:
+    ```json
+    {
+      "generation_id": "uuid",
+      "short_form": "Short-form content variant",
+      "long_form": "Long-form content variant",
+      "cta": "CTA-focused content variant",
+      "metadata": {
+        "model": "gpt-3.5-turbo-instruct",
+        "model_info": {"base_url": ""},
+        "project_id": "uuid",
+        "tokens_used": 300,
+        "generation_time": null
+      },
+      "variants": [
+        {
+          "variant_type": "short_form",
+          "content": "...",
+          "character_count": 150,
+          "word_count": 25
+        },
+        ...
+      ]
+    }
+    ```
+  - Returns `404 Not Found` if generation record or project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Returns `422 Unprocessable Entity` if generation_id format is invalid
+  - Requires authentication
 
 - **PATCH** `/api/generate/{generation_id}` - Update generated content variants
   - Request: `{ "short_form": "Updated short form", "long_form": "Updated long form content", "cta": "Updated CTA" }`

@@ -174,9 +174,7 @@ async def list_generation_records(
         )
         responses.append(response)
 
-    logger.info(
-        f"Retrieved {len(responses)} generation records for project {project_uuid} by user {current_user.id}"
-    )
+    logger.info(f"Retrieved {len(responses)} generation records for project {project_uuid} by user {current_user.id}")
 
     return responses
 
