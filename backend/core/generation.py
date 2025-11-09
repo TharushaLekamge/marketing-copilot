@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from semantic_kernel import Kernel
-from semantic_kernel.connectors.ai.ollama import OllamaChatCompletion
+from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
 from semantic_kernel.contents import ChatHistory
 from semantic_kernel.functions import KernelArguments
 from semantic_kernel.prompt_template import PromptTemplateConfig
@@ -33,23 +33,25 @@ class GenerationError(Exception):
 class ContentGenerationOrchestrator:
     """Orchestrates content generation using Semantic Kernel."""
 
-    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
-        """Initialize the orchestrator with Ollama configuration.
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+        """Initialize the orchestrator with OpenAI configuration.
 
         Args:
-            base_url: Ollama base URL (defaults to LLM_BASE_URL from settings)
-            model: Ollama model name (defaults to OLLAMA_MODEL from settings)
+            api_key: OpenAI API key (defaults to settings.openai_api_key)
+            model: OpenAI model name (defaults to settings.openai_chat_model_id)
         """
-        self.kernel = Kernel()
-        self.base_url = base_url or settings.llm_base_url
-        self.model = model or settings.ollama_model
 
-        # Use Semantic Kernel's native OllamaChatCompletion
-        ollama_service = OllamaChatCompletion(
-            host=self.base_url,
+        self.kernel = Kernel()
+        self.api_key = api_key or settings.openai_api_key
+        self.model = model or settings.openai_chat_model_id or "gpt-3.5-turbo-instruct"
+        logger.info(f"Using OpenAI API key: {self.api_key}")
+
+        # Use Semantic Kernel's native OpenAIChatCompletion
+        openai_service = OpenAIChatCompletion(
+            api_key=self.api_key,
             ai_model_id=self.model,
         )
-        self.kernel.add_service(ollama_service)
+        self.kernel.add_service(openai_service)
 
         # Create prompt template config (reusable)
         prompt_config = PromptTemplateConfig(
@@ -159,7 +161,7 @@ class ContentGenerationOrchestrator:
             # Get metadata
             metadata = {
                 "model": self.model,
-                "base_url": self.base_url,
+                "provider": "openai",
                 "project_id": str(project_id) if project_id else None,
             }
 
@@ -182,7 +184,7 @@ async def generate_content_variants(
     project_description: Optional[str] = None,
     brand_tone: Optional[str] = None,
     asset_summaries: Optional[list] = None,
-    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
     model: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate content variants using Semantic Kernel orchestration.
@@ -196,8 +198,8 @@ async def generate_content_variants(
         project_description: Optional project description for context
         brand_tone: Optional brand tone and style guidelines
         asset_summaries: Optional list of asset summaries for context
-        base_url: Optional Ollama base URL (defaults to LLM_BASE_URL from settings)
-        model: Optional Ollama model name (defaults to OLLAMA_MODEL from settings)
+        api_key: Optional OpenAI API key (defaults to settings.openai_api_key)
+        model: Optional OpenAI model name (defaults to settings.openai_chat_model_id)
 
     Returns:
         Dict containing variants and metadata
@@ -205,7 +207,7 @@ async def generate_content_variants(
     Raises:
         GenerationError: If generation fails
     """
-    orchestrator = ContentGenerationOrchestrator(base_url=base_url, model=model)
+    orchestrator = ContentGenerationOrchestrator(api_key=api_key, model=model)
     return await orchestrator.generate_variants(
         brief=brief,
         project_id=project_id,

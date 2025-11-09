@@ -52,6 +52,16 @@ class Settings(BaseSettings):
         description="Ollama model name to use",
         alias="OLLAMA_MODEL",
     )
+    openai_api_key: str | None = Field(
+        default=None,
+        description="OpenAI API key",
+        alias="OPENAI_API_KEY",
+    )
+    openai_chat_model_id: str | None = Field(
+        default="gpt-3.5-turbo-instruct",
+        description="OpenAI chat model ID (e.g., gpt-4, gpt-3.5-turbo)",
+        alias="OPENAI_CHAT_MODEL_ID",
+    )
 
     @field_validator("database_url", mode="before")
     @classmethod
