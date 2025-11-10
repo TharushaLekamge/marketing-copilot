@@ -1,6 +1,6 @@
 """Tests for generation router."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from backend.core.generation import GenerationError
@@ -10,21 +10,9 @@ from backend.models.project import Project
 from fastapi.testclient import TestClient
 
 
-@patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_success(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
-    """Test successful content generation."""
-
-    # Setup mock generation result
-    mock_generate.return_value = {
-        "short_form": "Check out our new product! #innovation",
-        "long_form": "We're excited to introduce our latest innovation that will revolutionize the way you work...",
-        "cta": "Click here to learn more and get started today!",
-        "metadata": {
-            "model": "gpt-3.5-turbo-instruct",
-            "provider": "openai",
-            "project_id": None,
-        },
-    }
+@patch("backend.routers.generation._generate_content_background")
+def test_generate_content_success(mock_background: MagicMock, test_client: TestClient, create_user, test_db_session):
+    """Test successful content generation returns 202 Accepted."""
 
     # Create user and project
     user, token = create_user(
@@ -55,49 +43,33 @@ def test_generate_content_success(mock_generate: AsyncMock, test_client: TestCli
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 201
+    # Should return 202 Accepted
+    assert response.status_code == 202
     data = response.json()
     assert "generation_id" in data
+    assert "status" in data
+    assert "message" in data
     assert data["generation_id"] is not None
-    assert data["short_form"] == "Check out our new product! #innovation"
-    assert (
-        data["long_form"]
-        == "We're excited to introduce our latest innovation that will revolutionize the way you work..."
-    )
-    assert data["cta"] == "Click here to learn more and get started today!"
-    assert data["metadata"]["model"] == "gpt-3.5-turbo-instruct"
-    assert data["metadata"]["project_id"] == str(project.id)
-    assert "variants" in data
+    assert data["status"] == "pending"
+    assert data["message"] == "Generation started"
 
-    # Verify generation record was created
+    # Verify generation record was created with pending status
     record = test_db_session.query(GenerationRecord).filter(GenerationRecord.project_id == project.id).first()
     assert record is not None
     assert str(record.id) == data["generation_id"]
     assert record.user_id == user.id
-    assert record.model == "gpt-3.5-turbo-instruct"
+    assert record.status == "pending"
     assert "Launch a new product campaign" in record.prompt
 
-    # Verify generate_content_variants was called with correct arguments
-    mock_generate.assert_called_once()
-    call_args = mock_generate.call_args
-    assert call_args[1]["brief"] == "Launch a new product campaign"
-    assert call_args[1]["project_id"] == project.id
-    assert call_args[1]["project_name"] == "Test Project"
-    assert call_args[1]["brand_tone"] == "Professional and friendly"
+    # Verify background task was added
+    assert mock_background.called
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_generate_content_with_all_optional_fields(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
-    """Test content generation with all optional fields."""
-
-    mock_generate.return_value = {
-        "short_form": "Short content",
-        "long_form": "Long content",
-        "cta": "CTA content",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
+    """Test content generation with all optional fields returns 202 Accepted."""
 
     user, token = create_user(
         email="allfields@example.com",
@@ -125,28 +97,18 @@ def test_generate_content_with_all_optional_fields(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
     data = response.json()
-    assert data["short_form"] == "Short content"
-    assert data["long_form"] == "Long content"
-    assert data["cta"] == "CTA content"
+    assert data["status"] == "pending"
+    assert "generation_id" in data
 
-    # Verify all fields were passed to generation
-    call_args = mock_generate.call_args
-    assert call_args[1]["brief"] == "Campaign brief"
-    assert call_args[1]["brand_tone"] == "Casual"
+    # Verify background task was called
+    assert mock_background.called
 
 
-@patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_with_assets(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
-    """Test content generation with project assets."""
-
-    mock_generate.return_value = {
-        "short_form": "Short content",
-        "long_form": "Long content",
-        "cta": "CTA content",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
+@patch("backend.routers.generation._generate_content_background")
+def test_generate_content_with_assets(mock_background: MagicMock, test_client: TestClient, create_user, test_db_session):
+    """Test content generation with project assets returns 202 Accepted."""
 
     user, token = create_user(
         email="assets@example.com",
@@ -186,11 +148,12 @@ def test_generate_content_with_assets(mock_generate: AsyncMock, test_client: Tes
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
 
-    # Verify assets were passed to generation
-    call_args = mock_generate.call_args
-    asset_summaries = call_args[1]["asset_summaries"]
+    # Verify background task was called with asset summaries
+    assert mock_background.called
+    call_args = mock_background.call_args
+    asset_summaries = call_args[0][6]  # asset_summaries is the 7th positional argument
     assert len(asset_summaries) == 2
     assert asset_summaries[0]["filename"] == "document.pdf"
     assert asset_summaries[1]["filename"] == "image.jpg"
@@ -264,14 +227,13 @@ def test_generate_content_with_other_user_project(test_client: TestClient, creat
     assert response.json()["detail"] == "Not authorized to generate content for this project"
 
 
-@patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_with_generation_error(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+@patch("backend.routers.generation._generate_content_background")
+def test_generate_content_accepts_request_even_if_background_fails(
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
-    """Test content generation when generation fails."""
+    """Test that POST endpoint accepts request even if background task will fail."""
 
-    mock_generate.side_effect = GenerationError("LLM service unavailable")
-
+    # Background task errors are handled internally, endpoint should still return 202
     user, token = create_user(
         email="error@example.com",
         password="testpassword123",
@@ -294,22 +256,20 @@ def test_generate_content_with_generation_error(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 500
-    assert "Content generation failed" in response.json()["detail"]
-    assert "LLM service unavailable" in response.json()["detail"]
+    # Should still return 202 Accepted - errors are handled in background task
+    assert response.status_code == 202
 
-    # Verify no generation record was created
+    # Verify generation record was created with pending status
     record = test_db_session.query(GenerationRecord).filter(GenerationRecord.project_id == project.id).first()
-    assert record is None
+    assert record is not None
+    assert record.status == "pending"
 
 
-@patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_with_unexpected_error(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+@patch("backend.routers.generation._generate_content_background")
+def test_generate_content_handles_unexpected_errors_in_background(
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
-    """Test content generation when unexpected error occurs."""
-
-    mock_generate.side_effect = Exception("Unexpected database error")
+    """Test that unexpected errors in background task don't affect endpoint response."""
 
     user, token = create_user(
         email="unexpected@example.com",
@@ -333,22 +293,15 @@ def test_generate_content_with_unexpected_error(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 500
-    assert "unexpected error" in response.json()["detail"].lower()
+    # Should still return 202 Accepted - errors are handled in background task
+    assert response.status_code == 202
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_generate_content_creates_generation_record(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
-    """Test that generation record is created with correct data."""
-
-    mock_generate.return_value = {
-        "short_form": "Short",
-        "long_form": "Long",
-        "cta": "CTA",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
+    """Test that generation record is created with pending status."""
 
     user, token = create_user(
         email="record@example.com",
@@ -373,33 +326,24 @@ def test_generate_content_creates_generation_record(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
 
-    # Verify generation record
+    # Verify generation record is created with pending status
     record = test_db_session.query(GenerationRecord).filter(GenerationRecord.project_id == project.id).first()
     assert record is not None
     assert record.user_id == user.id
     assert record.project_id == project.id
-    assert record.model == "gpt-3.5-turbo-instruct"
-    assert record.response["short_form"] == "Short"
-    assert record.response["long_form"] == "Long"
-    assert record.response["cta"] == "CTA"
+    assert record.status == "pending"
+    assert record.response is None  # Response not yet populated
     assert "Test brief" in record.prompt
     assert "Professional" in record.prompt
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_generate_content_with_minimal_request(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
-    """Test content generation with minimal required fields only."""
-
-    mock_generate.return_value = {
-        "short_form": "Short",
-        "long_form": "Long",
-        "cta": "CTA",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
+    """Test content generation with minimal required fields only returns 202 Accepted."""
 
     user, token = create_user(
         email="minimal@example.com",
@@ -423,13 +367,12 @@ def test_generate_content_with_minimal_request(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
     data = response.json()
-    assert "short_form" in data
-    assert "long_form" in data
-    assert "cta" in data
-    assert "metadata" in data
-    assert "variants" in data
+    assert "generation_id" in data
+    assert "status" in data
+    assert "message" in data
+    assert data["status"] == "pending"
 
 
 def test_generate_content_with_invalid_project_id_format(test_client: TestClient, create_user):
@@ -483,18 +426,11 @@ def test_generate_content_with_empty_brief(test_client: TestClient, create_user,
     assert response.status_code == 422
 
 
-@patch("backend.routers.generation.generate_content_variants")
-def test_generate_content_response_includes_variants(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+@patch("backend.routers.generation._generate_content_background")
+def test_generate_content_returns_202_with_pending_status(
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
-    """Test that response includes variants array with calculated statistics."""
-
-    mock_generate.return_value = {
-        "short_form": "Short form content here",
-        "long_form": "Long form content with more words here",
-        "cta": "CTA content",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
+    """Test that POST /api/generate returns 202 Accepted with pending status."""
 
     user, token = create_user(
         email="variants@example.com",
@@ -518,42 +454,23 @@ def test_generate_content_response_includes_variants(
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
     data = response.json()
-    assert "variants" in data
-    assert len(data["variants"]) == 3
-
-    # Check variant structure
-    variant_types = [v["variant_type"] for v in data["variants"]]
-    assert "short_form" in variant_types
-    assert "long_form" in variant_types
-    assert "cta" in variant_types
-
-    # Check statistics
-    for variant in data["variants"]:
-        assert "content" in variant
-        assert "character_count" in variant
-        assert "word_count" in variant
-        assert variant["character_count"] > 0
-        assert variant["word_count"] > 0
+    assert "generation_id" in data
+    assert "status" in data
+    assert "message" in data
+    assert data["status"] == "pending"
+    assert data["message"] == "Generation started"
 
 
 # Tests for update_generated_content endpoint
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_update_generated_content_success(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test successful content update."""
-    # First, create a generation record
-    mock_generate.return_value = {
-        "short_form": "Original short form",
-        "long_form": "Original long form content",
-        "cta": "Original CTA",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
-
     user, token = create_user(
         email="updateuser@example.com",
         password="testpassword123",
@@ -565,25 +482,24 @@ def test_update_generated_content_success(
     test_db_session.commit()
     test_db_session.refresh(project)
 
-    # Generate content first
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief",
-    }
-    test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
+    # Create a completed generation record manually
+    generation_record = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief",
+        response={
+            "short_form": "Original short form",
+            "long_form": "Original long form content",
+            "cta": "Original CTA",
+        },
+        model="gpt-3.5-turbo-instruct",
+        tokens=None,
+        status="completed",
     )
-
-    # Get the generation record ID
-    record = (
-        test_db_session.query(GenerationRecord)
-        .filter(GenerationRecord.project_id == project.id)
-        .order_by(GenerationRecord.created_at.desc())
-        .first()
-    )
-    generation_id = record.id
+    test_db_session.add(generation_record)
+    test_db_session.commit()
+    test_db_session.refresh(generation_record)
+    generation_id = generation_record.id
 
     # Now update the content
     update_request = {
@@ -621,18 +537,11 @@ def test_update_generated_content_success(
     assert record.response["cta"] == "Updated CTA"
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_update_generated_content_partial(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test partial content update (only some fields)."""
-    mock_generate.return_value = {
-        "short_form": "Original short form",
-        "long_form": "Original long form content",
-        "cta": "Original CTA",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
-
     user, token = create_user(
         email="partialupdate@example.com",
         password="testpassword123",
@@ -644,25 +553,24 @@ def test_update_generated_content_partial(
     test_db_session.commit()
     test_db_session.refresh(project)
 
-    # Generate content first
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief",
-    }
-    test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
+    # Create a completed generation record manually
+    generation_record = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief",
+        response={
+            "short_form": "Original short form",
+            "long_form": "Original long form content",
+            "cta": "Original CTA",
+        },
+        model="gpt-3.5-turbo-instruct",
+        tokens=None,
+        status="completed",
     )
-
-    # Get the generation record ID
-    record = (
-        test_db_session.query(GenerationRecord)
-        .filter(GenerationRecord.project_id == project.id)
-        .order_by(GenerationRecord.created_at.desc())
-        .first()
-    )
-    generation_id = record.id
+    test_db_session.add(generation_record)
+    test_db_session.commit()
+    test_db_session.refresh(generation_record)
+    generation_id = generation_record.id
 
     # Update only short_form
     update_request = {
@@ -694,18 +602,11 @@ def test_update_generated_content_partial(
     assert record.response["cta"] == "Original CTA"
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_update_generated_content_preserves_metadata(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test that update preserves original metadata."""
-    mock_generate.return_value = {
-        "short_form": "Original short form",
-        "long_form": "Original long form",
-        "cta": "Original CTA",
-        "metadata": {"model": "gpt-4", "provider": "openai"},
-    }
-
     user, token = create_user(
         email="metadata@example.com",
         password="testpassword123",
@@ -717,26 +618,25 @@ def test_update_generated_content_preserves_metadata(
     test_db_session.commit()
     test_db_session.refresh(project)
 
-    # Generate content first
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief",
-    }
-    test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
+    # Create a completed generation record manually
+    generation_record = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief",
+        response={
+            "short_form": "Original short form",
+            "long_form": "Original long form",
+            "cta": "Original CTA",
+        },
+        model="gpt-4",
+        tokens=None,
+        status="completed",
     )
-
-    # Get the original record
-    original_record = (
-        test_db_session.query(GenerationRecord)
-        .filter(GenerationRecord.project_id == project.id)
-        .order_by(GenerationRecord.created_at.desc())
-        .first()
-    )
-    original_model = original_record.model
-    generation_id = original_record.id
+    test_db_session.add(generation_record)
+    test_db_session.commit()
+    test_db_session.refresh(generation_record)
+    original_model = generation_record.model
+    generation_id = generation_record.id
 
     # Update content
     update_request = {
@@ -854,18 +754,11 @@ def test_update_generated_content_with_other_user_project(
     assert response.json()["detail"] == "Not authorized to update content for this project"
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_update_generated_content_with_tokens(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test that update preserves token information if available."""
-    mock_generate.return_value = {
-        "short_form": "Original short form",
-        "long_form": "Original long form",
-        "cta": "Original CTA",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
-
     user, token = create_user(
         email="tokens@example.com",
         password="testpassword123",
@@ -877,35 +770,24 @@ def test_update_generated_content_with_tokens(
     test_db_session.commit()
     test_db_session.refresh(project)
 
-    # Generate content first
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief",
-    }
-    test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
+    # Create a completed generation record with tokens
+    generation_record = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief",
+        response={
+            "short_form": "Original short form",
+            "long_form": "Original long form",
+            "cta": "Original CTA",
+        },
+        model="gpt-3.5-turbo-instruct",
+        tokens={"prompt": 100, "completion": 200},
+        status="completed",
     )
-
-    # Manually set tokens on the generation record
-    record = (
-        test_db_session.query(GenerationRecord)
-        .filter(GenerationRecord.project_id == project.id)
-        .order_by(GenerationRecord.created_at.desc())
-        .first()
-    )
-    record.tokens = {"prompt": 100, "completion": 200}
+    test_db_session.add(generation_record)
     test_db_session.commit()
-
-    # Get the generation record ID
-    record = (
-        test_db_session.query(GenerationRecord)
-        .filter(GenerationRecord.project_id == project.id)
-        .order_by(GenerationRecord.created_at.desc())
-        .first()
-    )
-    generation_id = record.id
+    test_db_session.refresh(generation_record)
+    generation_id = generation_record.id
 
     # Update content
     update_request = {
@@ -946,18 +828,11 @@ def test_update_generated_content_with_invalid_generation_id_format(test_client:
     assert response.status_code == 422
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_update_generated_content_all_fields_none(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test update with all fields as None preserves existing content."""
-    mock_generate.return_value = {
-        "short_form": "Original short form",
-        "long_form": "Original long form",
-        "cta": "Original CTA",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
-
     user, token = create_user(
         email="allnone@example.com",
         password="testpassword123",
@@ -969,25 +844,24 @@ def test_update_generated_content_all_fields_none(
     test_db_session.commit()
     test_db_session.refresh(project)
 
-    # Generate content first
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief",
-    }
-    test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
+    # Create a completed generation record manually
+    generation_record = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief",
+        response={
+            "short_form": "Original short form",
+            "long_form": "Original long form",
+            "cta": "Original CTA",
+        },
+        model="gpt-3.5-turbo-instruct",
+        tokens=None,
+        status="completed",
     )
-
-    # Get the generation record ID
-    record = (
-        test_db_session.query(GenerationRecord)
-        .filter(GenerationRecord.project_id == project.id)
-        .order_by(GenerationRecord.created_at.desc())
-        .first()
-    )
-    generation_id = record.id
+    test_db_session.add(generation_record)
+    test_db_session.commit()
+    test_db_session.refresh(generation_record)
+    generation_id = generation_record.id
 
     # Update with all None (should preserve existing)
     update_request = {}
