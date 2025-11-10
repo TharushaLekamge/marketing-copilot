@@ -95,7 +95,13 @@ class TestRAGOrchestrator:
     @patch("backend.core.rag_pipeline.Kernel")
     @patch("backend.core.rag_pipeline.OpenAIChatCompletion")
     @pytest.mark.asyncio
-    async def test__empty_question__raises_error(self, mock_openai_class, mock_kernel_class, mock_semantic_search, mock_kernel):
+    async def test__empty_question__raises_error(
+        self,
+        mock_openai_class,
+        mock_kernel_class,
+        mock_semantic_search,
+        mock_kernel,
+    ):
         """Test that query raises error for empty question."""
         mock_kernel_class.return_value = mock_kernel
         mock_openai_class.return_value = MagicMock()
@@ -259,7 +265,9 @@ class TestRAGOrchestrator:
     @patch("backend.core.rag_pipeline.Kernel")
     @patch("backend.core.rag_pipeline.OpenAIChatCompletion")
     @pytest.mark.asyncio
-    async def test__semantic_search_error__raises_rag_error(self, mock_openai_class, mock_kernel_class, mock_semantic_search, sample_project_id, mock_kernel):
+    async def test__semantic_search_error__raises_rag_error(
+        self, mock_openai_class, mock_kernel_class, mock_semantic_search, sample_project_id, mock_kernel
+    ):
         """Test that query handles SemanticSearchError."""
         mock_kernel_class.return_value = mock_kernel
         mock_openai_class.return_value = MagicMock()
