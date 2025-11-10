@@ -17,8 +17,10 @@ from semantic_kernel.connectors.ai.open_ai import OpenAIChatPromptExecutionSetti
 from backend.config import settings
 from backend.core.prompt_templates import (
     build_project_context,
+    build_rag_context,
     get_content_generation_system_prompt,
 )
+from backend.core.semantic_search import SemanticSearchOrchestrator
 from backend.core.sk_plugins.content_generation import (
     CTA_TEMPLATE,
     LONG_FORM_TEMPLATE,
@@ -91,39 +93,77 @@ class ContentGenerationOrchestrator:
         project_description: Optional[str] = None,
         brand_tone: Optional[str] = None,
         asset_summaries: Optional[list] = None,
+        use_rag: bool = True,
+        rag_top_k: int = 5,
     ) -> Dict[str, Any]:
         """Generate content variants (short-form, long-form, CTA).
 
         Args:
             brief: Campaign brief or description
-            project_id: Optional project ID for tracking
+            project_id: Optional project ID for tracking and RAG context retrieval
             project_name: Optional project name for context
             project_description: Optional project description for context
             brand_tone: Optional brand tone and style guidelines
             asset_summaries: Optional list of asset summaries for context
+            use_rag: Whether to use RAG to retrieve relevant chunks from ingested assets (default: True)
+            rag_top_k: Number of relevant chunks to retrieve when using RAG (default: 5)
 
         Returns:
             Dict containing:
                 - short_form: Short-form content variant
                 - long_form: Long-form content variant
                 - cta: CTA-focused content variant
-                - metadata: Generation metadata (tokens, model, etc.)
+                - metadata: Generation metadata (tokens, model, chunks_retrieved, etc.)
 
         Raises:
             GenerationError: If generation fails
         """
         try:
-            # Build project context
+            # Build base project context (name, description, asset list)
             project_context = build_project_context(
                 project_name=project_name,
                 project_description=project_description,
                 asset_summaries=asset_summaries,
             )
 
-            # Get system prompt
+            # Retrieve relevant chunks using semantic search if RAG is enabled
+            rag_context = ""
+            chunks_retrieved = 0
+            logger.info(f"use_rag: {use_rag}, project_id: {project_id}")
+            if use_rag and project_id:
+                try:
+                    logger.info(f"Retrieving relevant chunks for generation brief: {brief[:50]}...")
+                    semantic_search = SemanticSearchOrchestrator()
+                    search_results = await semantic_search.search_with_context(
+                        query=brief,  # Use brief as search query
+                        project_id=project_id,
+                        top_k=rag_top_k,
+                        include_metadata=True,
+                    )
+
+                    if search_results:
+                        chunks_retrieved = len(search_results)
+                        rag_context = build_rag_context(search_results)
+                        logger.info(f"Retrieved {chunks_retrieved} relevant chunks for generation")
+                    else:
+                        logger.info("No relevant chunks found for generation brief")
+                except Exception as e:
+                    logger.warning(f"RAG context retrieval failed: {e}, continuing without RAG context")
+                    # Continue without RAG context if retrieval fails
+
+            # Merge RAG context with project context
+            if rag_context:
+                if project_context:
+                    full_context = f"{project_context}\n\nRelevant Content from Project Documents:\n{rag_context}"
+                else:
+                    full_context = f"Relevant Content from Project Documents:\n{rag_context}"
+            else:
+                full_context = project_context
+
+            # Get system prompt with merged context
             system_prompt = get_content_generation_system_prompt(
                 brand_tone=brand_tone,
-                project_context=project_context if project_context else None,
+                project_context=full_context if full_context else None,
             )
 
             # Prepare arguments for Semantic Kernel
@@ -131,7 +171,7 @@ class ContentGenerationOrchestrator:
                 system_message=system_prompt,
                 brief=brief,
                 brand_tone=brand_tone or "",
-                context=project_context or "",
+                context=full_context or "",
             )
 
             # Generate short-form content
@@ -164,6 +204,8 @@ class ContentGenerationOrchestrator:
                 "model": self.model,
                 "provider": "openai",
                 "project_id": str(project_id) if project_id else None,
+                "chunks_retrieved": chunks_retrieved if use_rag and project_id else None,
+                "rag_enabled": use_rag and project_id is not None,
             }
 
             return {
@@ -187,6 +229,8 @@ async def generate_content_variants(
     asset_summaries: Optional[list] = None,
     api_key: Optional[str] = None,
     model: Optional[str] = None,
+    use_rag: bool = True,
+    rag_top_k: int = 5,
 ) -> Dict[str, Any]:
     """Generate content variants using Semantic Kernel orchestration.
 
@@ -194,13 +238,15 @@ async def generate_content_variants(
 
     Args:
         brief: Campaign brief or description
-        project_id: Optional project ID for tracking
+        project_id: Optional project ID for tracking and RAG context retrieval
         project_name: Optional project name for context
         project_description: Optional project description for context
         brand_tone: Optional brand tone and style guidelines
         asset_summaries: Optional list of asset summaries for context
         api_key: Optional OpenAI API key (defaults to settings.openai_api_key)
         model: Optional OpenAI model name (defaults to settings.openai_chat_model_id)
+        use_rag: Whether to use RAG to retrieve relevant chunks from ingested assets (default: True)
+        rag_top_k: Number of relevant chunks to retrieve when using RAG (default: 5)
 
     Returns:
         Dict containing variants and metadata
@@ -216,4 +262,6 @@ async def generate_content_variants(
         project_description=project_description,
         brand_tone=brand_tone,
         asset_summaries=asset_summaries,
+        use_rag=use_rag,
+        rag_top_k=rag_top_k,
     )
