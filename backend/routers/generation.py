@@ -35,6 +35,7 @@ async def _generate_content_background(
     project_name: str | None,
     project_description: str | None,
     brand_tone: str | None,
+    objective: str | None,
     asset_summaries: list[dict] | None,
     model: str,
 ) -> None:
@@ -50,6 +51,7 @@ async def _generate_content_background(
         project_name: Optional project name for context
         project_description: Optional project description for context
         brand_tone: Optional brand tone and style guidelines
+        objective: Optional campaign objective
         asset_summaries: Optional list of asset summaries for context
         model: Model name to use for generation
     """
@@ -72,6 +74,7 @@ async def _generate_content_background(
             project_name=project_name,
             project_description=project_description,
             brand_tone=brand_tone,
+            objective=objective,
             asset_summaries=asset_summaries,
         )
 
@@ -207,6 +210,7 @@ async def generate_content(
         project.name,
         project.description,
         generation_request.brand_tone,
+        generation_request.objective,
         asset_summaries if asset_summaries else None,
         model,
     )

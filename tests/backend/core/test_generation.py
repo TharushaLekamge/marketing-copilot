@@ -578,10 +578,12 @@ class TestContentGenerationOrchestratorGenerateVariants:
         orchestrator = ContentGenerationOrchestrator()
 
         brief = "Launch our new product"
+        objective = "Increase brand awareness"
         result = await orchestrator.generate_variants(
             brief=brief,
             project_id=sample_project_id,
             project_name="Test Project",
+            objective=objective,
             use_rag=True,
             rag_top_k=5,
         )
@@ -593,9 +595,10 @@ class TestContentGenerationOrchestratorGenerateVariants:
         assert result["metadata"]["chunks_retrieved"] == 1
         assert result["metadata"]["rag_enabled"] is True
 
-        # Verify semantic search was called
+        # Verify semantic search was called with combined brief + objective
+        expected_query = f"{brief} {objective}"
         mock_semantic_search.search_with_context.assert_called_once_with(
-            query=brief,
+            query=expected_query,
             project_id=sample_project_id,
             top_k=5,
             include_metadata=True,
@@ -609,6 +612,17 @@ class TestContentGenerationOrchestratorGenerateVariants:
         call_args = mock_get_system_prompt.call_args
         assert call_args.kwargs["project_context"] is not None
         assert "Relevant Content from Project Documents" in call_args.kwargs["project_context"]
+
+        # Verify kernel.invoke was called with enhanced brief (brief + objective)
+        assert mock_kernel.invoke.call_count == 3
+        invoke_calls = mock_kernel.invoke.call_args_list
+        for call in invoke_calls:
+            call_kwargs = call.kwargs
+            assert "arguments" in call_kwargs
+            args = call_kwargs["arguments"]
+            # Verify enhanced brief includes objective
+            assert objective in args["brief"]
+            assert brief in args["brief"]
 
     @pytest.mark.asyncio
     @patch("backend.core.generation.build_project_context")

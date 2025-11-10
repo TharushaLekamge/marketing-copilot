@@ -92,6 +92,7 @@ class ContentGenerationOrchestrator:
         project_name: Optional[str] = None,
         project_description: Optional[str] = None,
         brand_tone: Optional[str] = None,
+        objective: Optional[str] = None,
         asset_summaries: Optional[list] = None,
         use_rag: bool = True,
         rag_top_k: int = 5,
@@ -104,6 +105,7 @@ class ContentGenerationOrchestrator:
             project_name: Optional project name for context
             project_description: Optional project description for context
             brand_tone: Optional brand tone and style guidelines
+            objective: Optional campaign objective
             asset_summaries: Optional list of asset summaries for context
             use_rag: Whether to use RAG to retrieve relevant chunks from ingested assets (default: True)
             rag_top_k: Number of relevant chunks to retrieve when using RAG (default: 5)
@@ -126,27 +128,34 @@ class ContentGenerationOrchestrator:
                 asset_summaries=asset_summaries,
             )
 
+            # Build combined query for RAG using both brief and objective
+            rag_query_parts = [brief]
+            if objective:
+                rag_query_parts.append(objective)
+            rag_query = " ".join(rag_query_parts)
+
             # Retrieve relevant chunks using semantic search if RAG is enabled
             rag_context = ""
             chunks_retrieved = 0
             logger.info(f"use_rag: {use_rag}, project_id: {project_id}")
             if use_rag and project_id:
                 try:
-                    logger.info(f"Retrieving relevant chunks for generation brief: {brief[:50]}...")
+                    logger.info(f"Retrieving relevant chunks for generation query: {rag_query[:50]}...")
                     semantic_search = SemanticSearchOrchestrator()
                     search_results = await semantic_search.search_with_context(
-                        query=brief,  # Use brief as search query
+                        query=rag_query,  # Use combined brief + objective as search query
                         project_id=project_id,
                         top_k=rag_top_k,
                         include_metadata=True,
                     )
+                    
 
                     if search_results:
                         chunks_retrieved = len(search_results)
                         rag_context = build_rag_context(search_results)
                         logger.info(f"Retrieved {chunks_retrieved} relevant chunks for generation")
                     else:
-                        logger.info("No relevant chunks found for generation brief")
+                        logger.info("No relevant chunks found for generation query")
                 except Exception as e:
                     logger.warning(f"RAG context retrieval failed: {e}, continuing without RAG context")
                     # Continue without RAG context if retrieval fails
@@ -160,6 +169,11 @@ class ContentGenerationOrchestrator:
             else:
                 full_context = project_context
 
+            # Build enhanced brief with objective for content generation
+            enhanced_brief = brief
+            if objective:
+                enhanced_brief = f"{brief}\n\nObjective: {objective}"
+
             # Get system prompt with merged context
             system_prompt = get_content_generation_system_prompt(
                 brand_tone=brand_tone,
@@ -169,7 +183,7 @@ class ContentGenerationOrchestrator:
             # Prepare arguments for Semantic Kernel
             args = KernelArguments(
                 system_message=system_prompt,
-                brief=brief,
+                brief=enhanced_brief,  # Include objective in brief
                 brand_tone=brand_tone or "",
                 context=full_context or "",
             )
@@ -226,6 +240,7 @@ async def generate_content_variants(
     project_name: Optional[str] = None,
     project_description: Optional[str] = None,
     brand_tone: Optional[str] = None,
+    objective: Optional[str] = None,
     asset_summaries: Optional[list] = None,
     api_key: Optional[str] = None,
     model: Optional[str] = None,
@@ -242,6 +257,7 @@ async def generate_content_variants(
         project_name: Optional project name for context
         project_description: Optional project description for context
         brand_tone: Optional brand tone and style guidelines
+        objective: Optional campaign objective
         asset_summaries: Optional list of asset summaries for context
         api_key: Optional OpenAI API key (defaults to settings.openai_api_key)
         model: Optional OpenAI model name (defaults to settings.openai_chat_model_id)
@@ -261,6 +277,7 @@ async def generate_content_variants(
         project_name=project_name,
         project_description=project_description,
         brand_tone=brand_tone,
+        objective=objective,
         asset_summaries=asset_summaries,
         use_rag=use_rag,
         rag_top_k=rag_top_k,
