@@ -29,12 +29,25 @@ class GenerationRecord(Base):
         index=True,
     )
     prompt = Column(Text, nullable=False)
-    response = Column(JSONB, nullable=False)  # Stores full response with variants
+    response = Column(JSONB, nullable=True)  # Stores full response with variants (nullable for pending/processing)
     model = Column(String(255), nullable=False)
     tokens = Column(JSONB, nullable=True)  # Stores token usage: {"prompt": 120, "completion": 320}
+    status = Column(
+        String(50),
+        nullable=False,
+        default="pending",
+        index=True,
+    )  # Status: pending, processing, completed, failed
+    error_message = Column(Text, nullable=True)  # Error message if status is failed
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
 

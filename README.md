@@ -132,7 +132,7 @@ All asset endpoints require authentication via Bearer token in the Authorization
 
 All content generation endpoints require authentication via Bearer token in the Authorization header.
 
-- **POST** `/api/generate` - Generate content variants for a marketing campaign
+- **POST** `/api/generate` - Generate content variants for a marketing campaign (asynchronous)
   - Request: `{ "project_id": "uuid", "brief": "Campaign brief", "brand_tone": "Professional and friendly", "audience": "Young professionals", "objective": "Increase brand awareness", "channels": ["social", "email"] }`
     - `project_id` (required): UUID of the project
     - `brief` (required): Campaign brief or description (min 1 character)
@@ -140,7 +140,44 @@ All content generation endpoints require authentication via Bearer token in the 
     - `audience` (optional): Target audience description
     - `objective` (optional): Campaign objective
     - `channels` (optional): List of target channels (e.g., social, email)
-  - Response: `201 Created` with generated content variants:
+  - Response: `202 Accepted` with generation acceptance confirmation:
+    ```json
+    {
+      "message": "Generation started",
+      "generation_id": "uuid",
+      "status": "pending"
+    }
+    ```
+  - Returns `404 Not Found` if project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Requires authentication
+  - **Note**: This endpoint accepts the generation request and processes it asynchronously in the background. Use the `generation_id` to poll the GET endpoint below to check status and retrieve results.
+  - Uses project assets (if ingested) for context during generation
+  - Creates a generation record in the database with `pending` status
+  - Generation status transitions: `pending` → `processing` → `completed` or `failed`
+
+- **GET** `/api/generate/{generation_id}` - Get a single generation record by ID
+  - Response: `200 OK` with generation record (content varies by status):
+    
+    **When status is `pending` or `processing`:**
+    ```json
+    {
+      "generation_id": "uuid",
+      "short_form": "",
+      "long_form": "",
+      "cta": "",
+      "metadata": {
+        "model": "gpt-4o",
+        "model_info": {"base_url": ""},
+        "project_id": "uuid",
+        "tokens_used": null,
+        "generation_time": null
+      },
+      "variants": [...]
+    }
+    ```
+    
+    **When status is `completed`:**
     ```json
     {
       "generation_id": "uuid",
@@ -148,40 +185,7 @@ All content generation endpoints require authentication via Bearer token in the 
       "long_form": "Long-form content variant (150-300 words)",
       "cta": "CTA-focused content variant",
       "metadata": {
-        "model": "gpt-3.5-turbo-instruct",
-        "model_info": {"base_url": ""},
-        "project_id": "uuid",
-        "tokens_used": null,
-        "generation_time": null
-      },
-      "variants": [
-        {
-          "variant_type": "short_form",
-          "content": "...",
-          "character_count": 150,
-          "word_count": 25
-        },
-        ...
-      ]
-    }
-    ```
-  - Returns `404 Not Found` if project doesn't exist
-  - Returns `403 Forbidden` if user doesn't own the project
-  - Returns `500 Internal Server Error` if content generation fails
-  - Requires authentication
-  - Uses project assets (if ingested) for context during generation
-  - Creates a generation record in the database for tracking
-
-- **GET** `/api/generate/{generation_id}` - Get a single generation record by ID
-  - Response: `200 OK` with generation record:
-    ```json
-    {
-      "generation_id": "uuid",
-      "short_form": "Short-form content variant",
-      "long_form": "Long-form content variant",
-      "cta": "CTA-focused content variant",
-      "metadata": {
-        "model": "gpt-3.5-turbo-instruct",
+        "model": "gpt-4o",
         "model_info": {"base_url": ""},
         "project_id": "uuid",
         "tokens_used": 300,
@@ -201,7 +205,9 @@ All content generation endpoints require authentication via Bearer token in the 
   - Returns `404 Not Found` if generation record or project doesn't exist
   - Returns `403 Forbidden` if user doesn't own the project
   - Returns `422 Unprocessable Entity` if generation_id format is invalid
+  - Returns `500 Internal Server Error` if generation status is `failed` (includes error message)
   - Requires authentication
+  - **Usage**: Poll this endpoint after creating a generation request to check status and retrieve results when `status` is `completed`
 
 - **PATCH** `/api/generate/{generation_id}` - Update generated content variants
   - Request: `{ "short_form": "Updated short form", "long_form": "Updated long form content", "cta": "Updated CTA" }`

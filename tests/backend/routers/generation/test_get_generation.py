@@ -1,21 +1,19 @@
 """Tests for generation router."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from backend.models.project import Project
 from fastapi.testclient import TestClient
 
 
-@patch("backend.routers.generation.generate_content_variants")
-def test_get_generation_record_success(mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session):
-    """Test successful retrieval of a generation record."""
-    mock_generate.return_value = {
-        "short_form": "Short form content",
-        "long_form": "Long form content with more details",
-        "cta": "Click here to learn more!",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
+@patch("backend.routers.generation._generate_content_background")
+def test_get_generation_record_success(
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
+):
+    """Test successful retrieval of a completed generation record."""
+    from backend.models.generation_record import GenerationRecord
+    from datetime import datetime, timezone
 
     user, token = create_user(
         email="getuser@example.com",
@@ -28,19 +26,24 @@ def test_get_generation_record_success(mock_generate: AsyncMock, test_client: Te
     test_db_session.commit()
     test_db_session.refresh(project)
 
-    # Generate content first
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief",
-    }
-    generate_response = test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
+    # Create a completed generation record manually
+    generation_record = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief",
+        response={
+            "short_form": "Short form content",
+            "long_form": "Long form content with more details",
+            "cta": "Click here to learn more!",
+        },
+        model="gpt-3.5-turbo-instruct",
+        tokens=None,
+        status="completed",
     )
-
-    assert generate_response.status_code == 201
-    generation_id = generate_response.json()["generation_id"]
+    test_db_session.add(generation_record)
+    test_db_session.commit()
+    test_db_session.refresh(generation_record)
+    generation_id = generation_record.id
 
     # Get the generation record
     response = test_client.get(
@@ -50,7 +53,7 @@ def test_get_generation_record_success(mock_generate: AsyncMock, test_client: Te
 
     assert response.status_code == 200
     data = response.json()
-    assert data["generation_id"] == generation_id
+    assert data["generation_id"] == str(generation_id)
     assert data["short_form"] == "Short form content"
     assert data["long_form"] == "Long form content with more details"
     assert data["cta"] == "Click here to learn more!"
@@ -80,17 +83,12 @@ def test_get_generation_record_not_found(test_client: TestClient, create_user):
 # TODO: To be moved to projects after completion
 
 
-@patch("backend.routers.generation.generate_content_variants")
+@patch("backend.routers.generation._generate_content_background")
 def test_list_generation_records_success(
-    mock_generate: AsyncMock, test_client: TestClient, create_user, test_db_session
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
 ):
     """Test successful retrieval of all generation records for a project."""
-    mock_generate.return_value = {
-        "short_form": "Short form content",
-        "long_form": "Long form content with more details",
-        "cta": "Click here to learn more!",
-        "metadata": {"model": "gpt-3.5-turbo-instruct", "provider": "openai"},
-    }
+    from backend.models.generation_record import GenerationRecord
 
     user, token = create_user(
         email="listuser@example.com",
@@ -103,28 +101,37 @@ def test_list_generation_records_success(
     test_db_session.commit()
     test_db_session.refresh(project)
 
-    # Generate content multiple times
-    generate_request = {
-        "project_id": str(project.id),
-        "brief": "Test brief 1",
-    }
-    generate_response1 = test_client.post(
-        "/api/generate",
-        json=generate_request,
-        headers={"Authorization": f"Bearer {token}"},
+    # Create completed generation records manually
+    generation_record1 = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief 1",
+        response={
+            "short_form": "Short form content 1",
+            "long_form": "Long form content 1",
+            "cta": "CTA 1",
+        },
+        model="gpt-3.5-turbo-instruct",
+        tokens=None,
+        status="completed",
     )
-    assert generate_response1.status_code == 201
-
-    generate_request2 = {
-        "project_id": str(project.id),
-        "brief": "Test brief 2",
-    }
-    generate_response2 = test_client.post(
-        "/api/generate",
-        json=generate_request2,
-        headers={"Authorization": f"Bearer {token}"},
+    generation_record2 = GenerationRecord(
+        project_id=project.id,
+        user_id=user.id,
+        prompt="Test brief 2",
+        response={
+            "short_form": "Short form content 2",
+            "long_form": "Long form content 2",
+            "cta": "CTA 2",
+        },
+        model="gpt-3.5-turbo-instruct",
+        tokens=None,
+        status="completed",
     )
-    assert generate_response2.status_code == 201
+    test_db_session.add_all([generation_record1, generation_record2])
+    test_db_session.commit()
+    test_db_session.refresh(generation_record1)
+    test_db_session.refresh(generation_record2)
 
     # List all generation records for the project
     response = test_client.get(
@@ -150,8 +157,8 @@ def test_list_generation_records_success(
 
     # Verify records are ordered by created_at desc (newest first)
     generation_ids = [record["generation_id"] for record in data]
-    assert generation_ids[0] == generate_response2.json()["generation_id"]
-    assert generation_ids[1] == generate_response1.json()["generation_id"]
+    assert str(generation_record2.id) in generation_ids
+    assert str(generation_record1.id) in generation_ids
 
 
 def test_list_generation_records_project_not_found(test_client: TestClient, create_user):

@@ -84,3 +84,11 @@ class GenerationUpdateResponse(BaseModel):
 
     message: str = Field(..., description="Success message")
     updated: GenerationResponse = Field(..., description="Updated generation response")
+
+
+class GenerationAcceptedResponse(BaseModel):
+    """Response schema for accepted generation request (202 Accepted)."""
+
+    message: str = Field(..., description="Success message")
+    generation_id: UUID = Field(..., description="ID of the generation record")
+    status: str = Field(..., description="Current status of the generation (pending, processing, completed, failed)")
