@@ -567,7 +567,9 @@ class TestContentGenerationOrchestratorGenerateVariants:
         mock_semantic_search.search_with_context = AsyncMock(return_value=search_results)
 
         # Mock RAG context building
-        mock_build_rag_context.return_value = "[1] Source: test.pdf Asset ID: ...\nThis is relevant content from project documents."
+        mock_build_rag_context.return_value = (
+            "[1] Source: test.pdf Asset ID: ...\nThis is relevant content from project documents."
+        )
 
         # Mock project context
         mock_build_context.return_value = "Project: Test Project"

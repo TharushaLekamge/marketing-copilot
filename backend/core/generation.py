@@ -148,7 +148,6 @@ class ContentGenerationOrchestrator:
                         top_k=rag_top_k,
                         include_metadata=True,
                     )
-                    
 
                     if search_results:
                         chunks_retrieved = len(search_results)
