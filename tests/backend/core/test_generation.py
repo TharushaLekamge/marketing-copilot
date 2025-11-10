@@ -11,6 +11,7 @@ from backend.core.generation import (
     GenerationError,
     generate_content_variants,
 )
+from backend.core.semantic_search import SemanticSearchOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -480,6 +481,331 @@ class TestContentGenerationOrchestratorGenerateVariants:
             brand_tone="Professional and friendly",
             project_context=None,
         )
+
+    @pytest.mark.asyncio
+    @patch("backend.core.generation.build_rag_context")
+    @patch("backend.core.generation.SemanticSearchOrchestrator")
+    @patch("backend.core.generation.build_project_context")
+    @patch("backend.core.generation.get_content_generation_system_prompt")
+    @patch("backend.core.generation.Kernel")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
+    async def test__generate_variants__with_rag_enabled(
+        self,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
+        mock_kernel_class: MagicMock,
+        mock_get_system_prompt: MagicMock,
+        mock_build_context: MagicMock,
+        mock_semantic_search_class: MagicMock,
+        mock_build_rag_context: MagicMock,
+        sample_project_id: UUID,
+    ):
+        """Test generation with RAG enabled."""
+        # Setup mocks
+        mock_kernel = MagicMock()
+        mock_kernel_class.return_value = mock_kernel
+
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
+
+        # Mock function results
+        short_form_content = MagicMock()
+        short_form_content.content = "Short form with RAG context"
+        short_form_result = MagicMock()
+        short_form_result.value = [short_form_content]
+
+        long_form_content = MagicMock()
+        long_form_content.content = "Long form with RAG context"
+        long_form_result = MagicMock()
+        long_form_result.value = [long_form_content]
+
+        cta_content = MagicMock()
+        cta_content.content = "CTA with RAG context"
+        cta_result = MagicMock()
+        cta_result.value = [cta_content]
+
+        invoke_count = 0
+
+        async def mock_invoke(*args, **kwargs):
+            nonlocal invoke_count
+            invoke_count += 1
+            if invoke_count == 1:
+                return short_form_result
+            elif invoke_count == 2:
+                return long_form_result
+            else:
+                return cta_result
+
+        mock_kernel.invoke = AsyncMock(side_effect=mock_invoke)
+
+        def mock_add_function(*args, **kwargs):
+            func = MagicMock()
+            func.name = kwargs.get("function_name", "unknown")
+            return func
+
+        mock_kernel.add_function = Mock(side_effect=mock_add_function)
+
+        # Mock semantic search
+        mock_semantic_search = MagicMock(spec=SemanticSearchOrchestrator)
+        mock_semantic_search_class.return_value = mock_semantic_search
+
+        search_results = [
+            {
+                "text": "This is relevant content from project documents.",
+                "score": 0.85,
+                "asset_id": str(uuid4()),
+                "project_id": str(sample_project_id),
+                "chunk_index": 0,
+                "metadata": {"source": "test.pdf"},
+            }
+        ]
+        mock_semantic_search.search_with_context = AsyncMock(return_value=search_results)
+
+        # Mock RAG context building
+        mock_build_rag_context.return_value = (
+            "[1] Source: test.pdf Asset ID: ...\nThis is relevant content from project documents."
+        )
+
+        # Mock project context
+        mock_build_context.return_value = "Project: Test Project"
+
+        # Mock system prompt
+        mock_get_system_prompt.return_value = "You are a helpful assistant."
+
+        orchestrator = ContentGenerationOrchestrator()
+
+        brief = "Launch our new product"
+        objective = "Increase brand awareness"
+        result = await orchestrator.generate_variants(
+            brief=brief,
+            project_id=sample_project_id,
+            project_name="Test Project",
+            objective=objective,
+            use_rag=True,
+            rag_top_k=5,
+        )
+
+        # Verify results
+        assert result["short_form"] == "Short form with RAG context"
+        assert result["long_form"] == "Long form with RAG context"
+        assert result["cta"] == "CTA with RAG context"
+        assert result["metadata"]["chunks_retrieved"] == 1
+        assert result["metadata"]["rag_enabled"] is True
+
+        # Verify semantic search was called with combined brief + objective
+        expected_query = f"{brief} {objective}"
+        mock_semantic_search.search_with_context.assert_called_once_with(
+            query=expected_query,
+            project_id=sample_project_id,
+            top_k=5,
+            include_metadata=True,
+        )
+
+        # Verify RAG context was built
+        mock_build_rag_context.assert_called_once_with(search_results)
+
+        # Verify system prompt includes merged context
+        mock_get_system_prompt.assert_called_once()
+        call_args = mock_get_system_prompt.call_args
+        assert call_args.kwargs["project_context"] is not None
+        assert "Relevant Content from Project Documents" in call_args.kwargs["project_context"]
+
+        # Verify kernel.invoke was called with enhanced brief (brief + objective)
+        assert mock_kernel.invoke.call_count == 3
+        invoke_calls = mock_kernel.invoke.call_args_list
+        for call in invoke_calls:
+            call_kwargs = call.kwargs
+            assert "arguments" in call_kwargs
+            args = call_kwargs["arguments"]
+            # Verify enhanced brief includes objective
+            assert objective in args["brief"]
+            assert brief in args["brief"]
+
+    @pytest.mark.asyncio
+    @patch("backend.core.generation.build_project_context")
+    @patch("backend.core.generation.get_content_generation_system_prompt")
+    @patch("backend.core.generation.Kernel")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
+    async def test__generate_variants__with_rag_disabled(
+        self,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
+        mock_kernel_class: MagicMock,
+        mock_get_system_prompt: MagicMock,
+        mock_build_context: MagicMock,
+        sample_project_id: UUID,
+    ):
+        """Test generation with RAG disabled."""
+        # Setup mocks
+        mock_kernel = MagicMock()
+        mock_kernel_class.return_value = mock_kernel
+
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
+
+        # Mock function results
+        short_form_content = MagicMock()
+        short_form_content.content = "Short form without RAG"
+        short_form_result = MagicMock()
+        short_form_result.value = [short_form_content]
+
+        long_form_content = MagicMock()
+        long_form_content.content = "Long form without RAG"
+        long_form_result = MagicMock()
+        long_form_result.value = [long_form_content]
+
+        cta_content = MagicMock()
+        cta_content.content = "CTA without RAG"
+        cta_result = MagicMock()
+        cta_result.value = [cta_content]
+
+        invoke_count = 0
+
+        async def mock_invoke(*args, **kwargs):
+            nonlocal invoke_count
+            invoke_count += 1
+            if invoke_count == 1:
+                return short_form_result
+            elif invoke_count == 2:
+                return long_form_result
+            else:
+                return cta_result
+
+        mock_kernel.invoke = AsyncMock(side_effect=mock_invoke)
+
+        def mock_add_function(*args, **kwargs):
+            func = MagicMock()
+            func.name = kwargs.get("function_name", "unknown")
+            return func
+
+        mock_kernel.add_function = Mock(side_effect=mock_add_function)
+
+        # Mock project context
+        mock_build_context.return_value = "Project: Test Project"
+        mock_get_system_prompt.return_value = "You are a helpful assistant."
+
+        orchestrator = ContentGenerationOrchestrator()
+
+        result = await orchestrator.generate_variants(
+            brief="Test brief",
+            project_id=sample_project_id,
+            use_rag=False,
+        )
+
+        # Verify results
+        assert result["short_form"] == "Short form without RAG"
+        assert result["long_form"] == "Long form without RAG"
+        assert result["cta"] == "CTA without RAG"
+        assert result["metadata"]["chunks_retrieved"] is None
+        assert result["metadata"]["rag_enabled"] is False
+
+    @pytest.mark.asyncio
+    @patch("backend.core.generation.build_rag_context")
+    @patch("backend.core.generation.SemanticSearchOrchestrator")
+    @patch("backend.core.generation.build_project_context")
+    @patch("backend.core.generation.get_content_generation_system_prompt")
+    @patch("backend.core.generation.Kernel")
+    @patch("backend.core.generation.OpenAIChatCompletion")
+    @patch("backend.core.generation.settings")
+    async def test__generate_variants__rag_retrieval_failure_continues(
+        self,
+        mock_settings: MagicMock,
+        mock_openai_class: MagicMock,
+        mock_kernel_class: MagicMock,
+        mock_get_system_prompt: MagicMock,
+        mock_build_context: MagicMock,
+        mock_semantic_search_class: MagicMock,
+        mock_build_rag_context: MagicMock,
+        sample_project_id: UUID,
+    ):
+        """Test that generation continues if RAG retrieval fails."""
+        # Setup mocks
+        mock_kernel = MagicMock()
+        mock_kernel_class.return_value = mock_kernel
+
+        mock_openai_service = MagicMock()
+        mock_openai_class.return_value = mock_openai_service
+
+        # Mock settings
+        mock_settings.openai_api_key = "test-api-key"
+        mock_settings.openai_chat_model_id = "gpt-3.5-turbo-instruct"
+
+        # Mock function results
+        short_form_content = MagicMock()
+        short_form_content.content = "Short form"
+        short_form_result = MagicMock()
+        short_form_result.value = [short_form_content]
+
+        long_form_content = MagicMock()
+        long_form_content.content = "Long form"
+        long_form_result = MagicMock()
+        long_form_result.value = [long_form_content]
+
+        cta_content = MagicMock()
+        cta_content.content = "CTA"
+        cta_result = MagicMock()
+        cta_result.value = [cta_content]
+
+        invoke_count = 0
+
+        async def mock_invoke(*args, **kwargs):
+            nonlocal invoke_count
+            invoke_count += 1
+            if invoke_count == 1:
+                return short_form_result
+            elif invoke_count == 2:
+                return long_form_result
+            else:
+                return cta_result
+
+        mock_kernel.invoke = AsyncMock(side_effect=mock_invoke)
+
+        def mock_add_function(*args, **kwargs):
+            func = MagicMock()
+            func.name = kwargs.get("function_name", "unknown")
+            return func
+
+        mock_kernel.add_function = Mock(side_effect=mock_add_function)
+
+        # Mock semantic search to raise exception
+        mock_semantic_search = MagicMock(spec=SemanticSearchOrchestrator)
+        mock_semantic_search_class.return_value = mock_semantic_search
+        mock_semantic_search.search_with_context = AsyncMock(side_effect=Exception("Search failed"))
+
+        # Mock project context
+        mock_build_context.return_value = "Project: Test Project"
+        mock_get_system_prompt.return_value = "You are a helpful assistant."
+
+        orchestrator = ContentGenerationOrchestrator()
+
+        result = await orchestrator.generate_variants(
+            brief="Test brief",
+            project_id=sample_project_id,
+            use_rag=True,
+        )
+
+        # Verify results - generation should succeed despite RAG failure
+        assert result["short_form"] == "Short form"
+        assert result["long_form"] == "Long form"
+        assert result["cta"] == "CTA"
+        assert result["metadata"]["chunks_retrieved"] == 0
+        assert result["metadata"]["rag_enabled"] is True
+
+        # Verify semantic search was called
+        mock_semantic_search.search_with_context.assert_called_once()
+
+        # Verify RAG context was NOT built (because search failed)
+        mock_build_rag_context.assert_not_called()
 
 
 class TestGenerateContentVariants:
