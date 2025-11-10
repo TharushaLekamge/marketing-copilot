@@ -194,14 +194,14 @@ export default function AssistantPage({
                     Welcome to the Assistant
                   </h3>
                   <p className="text-gray-600">
-                    Ask me anything about your project documents. I'll search through your uploaded files and provide answers with citations.
+                    Ask me anything about your project documents. I&apos;ll search through your uploaded files and provide answers with citations.
                   </p>
                   <div className="mt-6 space-y-2 text-left">
                     <p className="text-sm font-medium text-gray-700">Try asking:</p>
                     <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-                      <li>"What are the main topics covered in my documents?"</li>
-                      <li>"Summarize the key points from my project files"</li>
-                      <li>"What information do I have about [topic]?"</li>
+                      <li>&quot;What are the main topics covered in my documents?&quot;</li>
+                      <li>&quot;Summarize the key points from my project files&quot;</li>
+                      <li>&quot;What information do I have about [topic]?&quot;</li>
                     </ul>
                   </div>
                 </div>
@@ -252,7 +252,7 @@ export default function AssistantPage({
                                 <div className={`line-clamp-3 ${
                                   message.role === "user" ? "opacity-90" : "opacity-80"
                                 }`}>
-                                  "{citation.text}"
+                                  &quot;{citation.text}&quot;
                                 </div>
                                 <div className={`mt-1 text-xs ${
                                   message.role === "user" ? "opacity-75" : "opacity-70"
