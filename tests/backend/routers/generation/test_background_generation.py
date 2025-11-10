@@ -495,9 +495,9 @@ def test_generate_content_with_background_task_parameters(
     # Verify background task was called with correct parameters
     assert mock_background.called
     call_args = mock_background.call_args
-    assert call_args[0][0] == generation_id  # generation_id
+    assert str(call_args[0][0]) == generation_id  # generation_id
     assert call_args[0][1] == "Test brief"  # brief
-    assert call_args[0][2] == project.id  # project_id
+    assert str(call_args[0][2]) == str(project.id)  # project_id
     assert call_args[0][3] == "Test Project"  # project_name
     assert call_args[0][4] == "Test description"  # project_description
     assert call_args[0][5] == "Professional"  # brand_tone
