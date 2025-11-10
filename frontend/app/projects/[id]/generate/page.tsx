@@ -10,7 +10,7 @@ import {
   Project,
 } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 export default function GeneratePage({
   params,
@@ -46,13 +46,7 @@ export default function GeneratePage({
     }
   }, [user, authLoading, router]);
 
-  useEffect(() => {
-    if (user && id) {
-      loadProject();
-    }
-  }, [user, id]);
-
-  const loadProject = async () => {
+  const loadProject = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -66,7 +60,13 @@ export default function GeneratePage({
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router]);
+
+  useEffect(() => {
+    if (user && id) {
+      loadProject();
+    }
+  }, [user, id, loadProject]);
 
   const pollGenerationStatus = async (genId: string) => {
     try {
