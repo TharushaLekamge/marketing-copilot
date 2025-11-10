@@ -205,8 +205,8 @@ class SemanticSearchOrchestrator:
                 "project_id": str(result.document.project_id),
                 "chunk_index": result.document.chunk_index,
             }
-            if include_metadata and result.document.metadata:
-                formatted["metadata"] = result.document.metadata
+            if include_metadata:
+                formatted["metadata"] = result.document.metadata or {}
 
             formatted_results.append(formatted)
 

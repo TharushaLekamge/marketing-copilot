@@ -87,9 +87,7 @@ class TestSemanticSearchOrchestrator:
             ),
         ]
 
-    def test__init__uses_provided_dependencies(
-        self, mock_vector_store, mock_embedding_generator
-    ):
+    def test__init__uses_provided_dependencies(self, mock_vector_store, mock_embedding_generator):
         """Test that orchestrator uses provided dependencies."""
         orchestrator = SemanticSearchOrchestrator(
             vector_store=mock_vector_store,
@@ -114,9 +112,7 @@ class TestSemanticSearchOrchestrator:
             assert orchestrator.embedding_generator == mock_generator
 
     @pytest.mark.asyncio
-    async def test_search_returns_empty_list_for_empty_query(
-        self, mock_vector_store, mock_embedding_generator
-    ):
+    async def test_search_returns_empty_list_for_empty_query(self, mock_vector_store, mock_embedding_generator):
         """Test that search returns empty list for empty query."""
         orchestrator = SemanticSearchOrchestrator(
             vector_store=mock_vector_store,
@@ -157,9 +153,7 @@ class TestSemanticSearchOrchestrator:
         assert len(results) == 3  # All results returned
 
     @pytest.mark.asyncio
-    async def test_search_with_reranking(
-        self, mock_vector_store, mock_embedding_generator, sample_search_results
-    ):
+    async def test_search_with_reranking(self, mock_vector_store, mock_embedding_generator, sample_search_results):
         """Test that search applies re-ranking when enabled."""
         mock_vector_store.search.return_value = sample_search_results
 
@@ -221,9 +215,7 @@ class TestSemanticSearchOrchestrator:
         assert call_args.kwargs["asset_id"] == sample_asset_id
 
     @pytest.mark.asyncio
-    async def test_search_handles_no_results(
-        self, mock_vector_store, mock_embedding_generator
-    ):
+    async def test_search_handles_no_results(self, mock_vector_store, mock_embedding_generator):
         """Test that search handles empty results gracefully."""
         mock_vector_store.search.return_value = []
 
@@ -236,9 +228,7 @@ class TestSemanticSearchOrchestrator:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_search_handles_vector_store_error(
-        self, mock_vector_store, mock_embedding_generator
-    ):
+    async def test_search_handles_vector_store_error(self, mock_vector_store, mock_embedding_generator):
         """Test that search handles VectorStoreError."""
         mock_vector_store.search.side_effect = VectorStoreError("Vector store error")
 
@@ -253,9 +243,7 @@ class TestSemanticSearchOrchestrator:
         assert "Vector store search failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_search_handles_general_exception(
-        self, mock_vector_store, mock_embedding_generator
-    ):
+    async def test_search_handles_general_exception(self, mock_vector_store, mock_embedding_generator):
         """Test that search handles general exceptions."""
         mock_vector_store.search.side_effect = Exception("Unexpected error")
 
@@ -331,9 +319,7 @@ class TestSemanticSearchOrchestrator:
             # Metadata boost is small, so we just check that it's applied
             assert len(results_with_metadata) > 0
 
-    def test_rerank_results_handles_empty_list(
-        self, mock_vector_store, mock_embedding_generator
-    ):
+    def test_rerank_results_handles_empty_list(self, mock_vector_store, mock_embedding_generator):
         """Test that re-ranking handles empty results."""
         orchestrator = SemanticSearchOrchestrator(
             vector_store=mock_vector_store,
@@ -356,9 +342,7 @@ class TestSemanticSearchOrchestrator:
         )
 
         query = "test query"
-        results = await orchestrator.search_with_context(
-            query=query, top_k=3, include_metadata=True
-        )
+        results = await orchestrator.search_with_context(query=query, top_k=3, include_metadata=True)
 
         assert len(results) == 3
         for result in results:
@@ -382,9 +366,7 @@ class TestSemanticSearchOrchestrator:
         )
 
         query = "test query"
-        results = await orchestrator.search_with_context(
-            query=query, top_k=3, include_metadata=False
-        )
+        results = await orchestrator.search_with_context(query=query, top_k=3, include_metadata=False)
 
         assert len(results) == 3
         for result in results:
@@ -447,9 +429,7 @@ class TestSemanticSearchConvenienceFunction:
         assert results[0].document.text == "Test document"
 
     @pytest.mark.asyncio
-    async def test_semantic_search_uses_defaults(
-        self, sample_search_results
-    ):
+    async def test_semantic_search_uses_defaults(self, sample_search_results):
         """Test that convenience function uses default dependencies."""
         with patch("backend.core.semantic_search.SemanticSearchOrchestrator") as mock_orchestrator_class:
             mock_orchestrator = AsyncMock()
@@ -563,9 +543,7 @@ class TestSemanticSearchIntegration:
         assert "marketing" in results[0].document.text.lower() or "strategies" in results[0].document.text.lower()
 
     @pytest.mark.asyncio
-    async def test_integration_search_with_reranking(
-        self, vector_store, embedding_generator, sample_documents
-    ):
+    async def test_integration_search_with_reranking(self, vector_store, embedding_generator, sample_documents):
         """Test that re-ranking improves result quality."""
         # Add documents to vector store
         vector_store.add_documents(sample_documents)
@@ -584,4 +562,3 @@ class TestSemanticSearchIntegration:
         # Results should be sorted by score
         for i in range(len(results) - 1):
             assert results[i].score >= results[i + 1].score
-
