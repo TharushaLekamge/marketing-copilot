@@ -297,7 +297,7 @@ class TestSemanticSearchOrchestrator:
             assert short_result.score <= reranked[0].score
 
     def test_rerank_results_applies_metadata_boost(
-        self, mock_vector_store, mock_embedding_generator, sample_search_results
+        self, mock_vector_store, mock_embedding_generator, sample_project_id, sample_asset_id
     ):
         """Test that re-ranking applies metadata boost."""
         orchestrator = SemanticSearchOrchestrator(
@@ -305,19 +305,49 @@ class TestSemanticSearchOrchestrator:
             embedding_generator=mock_embedding_generator,
         )
 
-        query = "test"
-        reranked = orchestrator._rerank_results(query, sample_search_results)
+        # Create test results with same base score to isolate metadata boost effect
+        # Both results have similar text length and no keyword matches
+        base_score = 0.75
+        results_with_same_base = [
+            SearchResult(
+                document=VectorDocument(
+                    id=f"{sample_asset_id}_0",
+                    asset_id=sample_asset_id,
+                    project_id=sample_project_id,
+                    chunk_index=0,
+                    text="This is a test document with some content for testing purposes.",
+                    embedding=[],
+                    metadata={"source": "test_doc.pdf", "section": "intro"},  # Has metadata
+                ),
+                score=base_score,
+            ),
+            SearchResult(
+                document=VectorDocument(
+                    id=f"{sample_asset_id}_1",
+                    asset_id=sample_asset_id,
+                    project_id=sample_project_id,
+                    chunk_index=1,
+                    text="This is another test document with similar content for testing.",
+                    embedding=[],
+                    metadata=None,  # No metadata
+                ),
+                score=base_score,
+            ),
+        ]
 
-        # Results with metadata should have higher scores
-        results_with_metadata = [r for r in reranked if r.document.metadata]
-        results_without_metadata = [r for r in reranked if not r.document.metadata]
+        query = "test"  # No keyword matches to isolate metadata boost
+        reranked = orchestrator._rerank_results(query, results_with_same_base)
 
-        if results_with_metadata and results_without_metadata:
-            # At least one result with metadata should rank higher than results without
-            max_with_metadata = max(r.score for r in results_with_metadata)
-            max_without_metadata = max(r.score for r in results_without_metadata)
-            # Metadata boost is small, so we just check that it's applied
-            assert len(results_with_metadata) > 0
+        # Find results with and without metadata
+        result_with_metadata = next((r for r in reranked if r.document.metadata), None)
+        result_without_metadata = next((r for r in reranked if not r.document.metadata), None)
+
+        # Verify both exist
+        assert result_with_metadata is not None
+        assert result_without_metadata is not None
+
+        # Result with metadata should have higher score due to metadata boost
+        assert result_with_metadata.score > result_without_metadata.score
 
     def test_rerank_results_handles_empty_list(self, mock_vector_store, mock_embedding_generator):
         """Test that re-ranking handles empty results."""
@@ -436,7 +466,7 @@ class TestSemanticSearchConvenienceFunction:
             mock_orchestrator.search.return_value = sample_search_results
             mock_orchestrator_class.return_value = mock_orchestrator
 
-            results = await semantic_search(query="test query", top_k=5)
+            await semantic_search(query="test query", top_k=5)
 
             mock_orchestrator_class.assert_called_once()
             mock_orchestrator.search.assert_called_once_with(
