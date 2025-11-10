@@ -105,6 +105,36 @@ export interface GenerationAcceptedResponse {
   status: "pending" | "processing" | "completed" | "failed";
 }
 
+export interface AssistantQueryRequest {
+  project_id: string;
+  question: string;
+  top_k?: number;
+  include_citations?: boolean;
+}
+
+export interface Citation {
+  index: number;
+  text: string;
+  asset_id: string;
+  chunk_index: number;
+  score: number;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface AssistantQueryMetadata {
+  model: string;
+  provider: string;
+  project_id: string;
+  chunks_retrieved: number;
+  has_context: boolean;
+}
+
+export interface AssistantQueryResponse {
+  answer: string;
+  citations: Citation[];
+  metadata: AssistantQueryMetadata;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -356,6 +386,14 @@ class ApiClient {
   ): Promise<GenerationUpdateResponse> {
     return this.request<GenerationUpdateResponse>("/api/generate/update", {
       method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Assistant methods
+  async queryAssistant(data: AssistantQueryRequest): Promise<AssistantQueryResponse> {
+    return this.request<AssistantQueryResponse>("/api/assistant/query", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }

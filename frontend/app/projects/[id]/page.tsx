@@ -180,6 +180,12 @@ export default function ProjectDetailPage({
             </div>
             <div className="flex gap-3">
               <button
+                onClick={() => router.push(`/projects/${id}/assistant`)}
+                className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+              >
+                🤖 Ask Assistant
+              </button>
+              <button
                 onClick={() => router.push(`/projects/${id}/generate`)}
                 className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
               >
