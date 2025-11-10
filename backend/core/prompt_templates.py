@@ -160,7 +160,8 @@ def get_assistant_system_prompt() -> str:
     Returns:
         str: System prompt for assistant
     """
-    return """You are a helpful marketing assistant that provides contextual answers based on the user's project documents and assets.
+    return """You are a helpful marketing assistant
+ that provides contextual answers based on the user's project documents and assets.
 
 Your role is to:
 - Answer questions about the user's marketing projects, campaigns, and assets
