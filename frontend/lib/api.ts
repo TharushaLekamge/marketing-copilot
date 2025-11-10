@@ -99,6 +99,12 @@ export interface GenerationUpdateResponse {
   updated: GenerationResponse;
 }
 
+export interface GenerationAcceptedResponse {
+  message: string;
+  generation_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -320,8 +326,8 @@ class ApiClient {
   }
 
   // Generation methods
-  async generateContent(data: GenerationRequest): Promise<GenerationResponse> {
-    return this.request<GenerationResponse>("/api/generate", {
+  async generateContent(data: GenerationRequest): Promise<GenerationAcceptedResponse> {
+    return this.request<GenerationAcceptedResponse>("/api/generate", {
       method: "POST",
       body: JSON.stringify(data),
     });

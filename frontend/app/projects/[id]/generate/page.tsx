@@ -10,7 +10,7 @@ import {
   Project,
 } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function GeneratePage({
   params,
@@ -23,10 +23,14 @@ export default function GeneratePage({
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<"pending" | "processing" | "completed" | "failed" | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [response, setResponse] = useState<GenerationResponse | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Form state
   const [brief, setBrief] = useState("");
@@ -64,6 +68,42 @@ export default function GeneratePage({
     }
   };
 
+  const pollGenerationStatus = async (genId: string) => {
+    try {
+      const result = await apiClient.getGenerationRecord(genId);
+      
+      // Check if content is available (status is completed)
+      if (result.short_form || result.long_form || result.cta) {
+        // Content is available - generation completed
+        setResponse(result);
+        setGenerationStatus("completed");
+        setPolling(false);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      } else {
+        // Still pending or processing - continue polling
+        setGenerationStatus("processing");
+      }
+    } catch (err) {
+      // Check if it's a failed generation error
+      const errorMessage = err instanceof Error ? err.message : "Failed to check generation status";
+      if (errorMessage.includes("Generation failed") || errorMessage.includes("failed")) {
+        setGenerationStatus("failed");
+        setError(errorMessage);
+        setPolling(false);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      } else {
+        // Other error - log but continue polling
+        console.error("Error polling generation status:", err);
+      }
+    }
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -76,6 +116,14 @@ export default function GeneratePage({
       setGenerating(true);
       setError(null);
       setResponse(null);
+      setGenerationStatus(null);
+      setGenerationId(null);
+
+      // Clear any existing polling interval
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
 
       const request: GenerationRequest = {
         project_id: id,
@@ -86,14 +134,36 @@ export default function GeneratePage({
         channels: channels.length > 0 ? channels : null,
       };
 
-      const result = await apiClient.generateContent(request);
-      setResponse(result);
+      // Submit generation request - returns 202 Accepted
+      const acceptedResponse = await apiClient.generateContent(request);
+      
+      setGenerationId(acceptedResponse.generation_id);
+      setGenerationStatus(acceptedResponse.status);
+      setGenerating(false);
+      setPolling(true);
+
+      // Start polling for results
+      // Poll immediately, then every 2 seconds
+      pollGenerationStatus(acceptedResponse.generation_id);
+      
+      pollingIntervalRef.current = setInterval(() => {
+        pollGenerationStatus(acceptedResponse.generation_id);
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate content");
-    } finally {
       setGenerating(false);
+      setPolling(false);
     }
   };
+
+  // Cleanup polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
 
   const handleAddChannel = () => {
     if (channelInput.trim() && !channels.includes(channelInput.trim())) {
@@ -211,7 +281,7 @@ export default function GeneratePage({
           </div>
         )}
 
-        {!response ? (
+        {!response && !polling ? (
           /* Generation Form */
           <div className="rounded-lg bg-white p-6 shadow">
             <h3 className="mb-6 text-2xl font-bold text-gray-900">
@@ -353,7 +423,27 @@ export default function GeneratePage({
               </div>
             </form>
           </div>
-        ) : (
+        ) : polling && !response ? (
+          /* Polling/Loading State */
+          <div className="rounded-lg bg-white p-6 shadow">
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+              <h3 className="mb-2 text-xl font-semibold text-gray-900">
+                Generating Content...
+              </h3>
+              <p className="text-sm text-gray-600">
+                {generationStatus === "pending" && "Request accepted, starting generation..."}
+                {generationStatus === "processing" && "Content is being generated, please wait..."}
+                {generationStatus === null && "Initializing generation..."}
+              </p>
+              {generationId && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Generation ID: {generationId}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : response ? (
           /* Generated Content Display */
           <div className="space-y-6">
             <div className="flex items-center justify-between rounded-lg bg-white p-6 shadow">
@@ -364,11 +454,18 @@ export default function GeneratePage({
                 <button
                   onClick={() => {
                     setResponse(null);
+                    setPolling(false);
+                    setGenerationStatus(null);
+                    setGenerationId(null);
                     setBrief("");
                     setBrandTone("");
                     setAudience("");
                     setObjective("");
                     setChannels([]);
+                    if (pollingIntervalRef.current) {
+                      clearInterval(pollingIntervalRef.current);
+                      pollingIntervalRef.current = null;
+                    }
                   }}
                   className="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
                 >
@@ -391,7 +488,7 @@ export default function GeneratePage({
               />
             </div>
           </div>
-        )}
+        ) : null}
       </main>
     </div>
   );
