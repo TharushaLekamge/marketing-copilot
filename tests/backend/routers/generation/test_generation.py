@@ -155,7 +155,9 @@ def test_generate_content_with_assets(
     # Verify background task was called with asset summaries
     assert mock_background.called
     call_args = mock_background.call_args
-    asset_summaries = call_args[0][6]  # asset_summaries is the 7th positional argument
+    # Arguments: generation_id, brief, project_id, project_name, project_description, brand_tone, objective, asset_summaries
+    asset_summaries = call_args[0][7]  # asset_summaries is the 8th positional argument (after adding objective)
+    assert asset_summaries is not None
     assert len(asset_summaries) == 2
     assert asset_summaries[0]["filename"] == "document.pdf"
     assert asset_summaries[1]["filename"] == "image.jpg"
