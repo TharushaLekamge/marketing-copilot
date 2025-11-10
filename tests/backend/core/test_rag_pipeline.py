@@ -79,8 +79,12 @@ class TestRAGOrchestrator:
         assert orchestrator.kernel == mock_kernel
         assert orchestrator.assistant_func is not None
 
-    def test__init__uses_default_semantic_search(self):
+    @patch("backend.core.rag_pipeline.Kernel")
+    @patch("backend.core.rag_pipeline.OpenAIChatCompletion")
+    def test__init__uses_default_semantic_search(self, mock_openai_class, mock_kernel_class, mock_kernel):
         """Test that orchestrator uses default semantic search when not provided."""
+        mock_kernel_class.return_value = mock_kernel
+        mock_openai_class.return_value = MagicMock()
         with patch("backend.core.rag_pipeline.SemanticSearchOrchestrator") as mock_class:
             mock_instance = MagicMock()
             mock_class.return_value = mock_instance
@@ -88,9 +92,13 @@ class TestRAGOrchestrator:
             orchestrator = RAGOrchestrator()
             assert orchestrator.semantic_search == mock_instance
 
+    @patch("backend.core.rag_pipeline.Kernel")
+    @patch("backend.core.rag_pipeline.OpenAIChatCompletion")
     @pytest.mark.asyncio
-    async def test__empty_question__raises_error(self, mock_semantic_search):
+    async def test__empty_question__raises_error(self, mock_openai_class, mock_kernel_class, mock_semantic_search, mock_kernel):
         """Test that query raises error for empty question."""
+        mock_kernel_class.return_value = mock_kernel
+        mock_openai_class.return_value = MagicMock()
         orchestrator = RAGOrchestrator(semantic_search_orchestrator=mock_semantic_search)
 
         with pytest.raises(RAGError) as exc_info:
@@ -248,9 +256,13 @@ class TestRAGOrchestrator:
         call_args = mock_semantic_search.search_with_context.call_args
         assert call_args.kwargs["top_k"] == 10
 
+    @patch("backend.core.rag_pipeline.Kernel")
+    @patch("backend.core.rag_pipeline.OpenAIChatCompletion")
     @pytest.mark.asyncio
-    async def test__semantic_search_error__raises_rag_error(self, mock_semantic_search, sample_project_id):
+    async def test__semantic_search_error__raises_rag_error(self, mock_openai_class, mock_kernel_class, mock_semantic_search, sample_project_id, mock_kernel):
         """Test that query handles SemanticSearchError."""
+        mock_kernel_class.return_value = mock_kernel
+        mock_openai_class.return_value = MagicMock()
         mock_semantic_search.search_with_context = AsyncMock(side_effect=SemanticSearchError("Search failed"))
 
         orchestrator = RAGOrchestrator(semantic_search_orchestrator=mock_semantic_search)
