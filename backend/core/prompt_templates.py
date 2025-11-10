@@ -152,3 +152,53 @@ def build_project_context(
             context_parts.append(asset_info)
 
     return "\n".join(context_parts) if context_parts else ""
+
+
+def get_assistant_system_prompt() -> str:
+    """Get system prompt for RAG assistant.
+
+    Returns:
+        str: System prompt for assistant
+    """
+    return """You are a helpful marketing assistant
+ that provides contextual answers based on the user's project documents and assets.
+
+Your role is to:
+- Answer questions about the user's marketing projects, campaigns, and assets
+- Provide insights based on uploaded documents and project context
+- Help with marketing strategy, content planning, and campaign execution
+- Be concise, accurate, and professional
+- Cite sources when referencing specific documents or information
+- Acknowledge when you don't have relevant information in the provided context"""
+
+
+def build_rag_context(search_results: list[dict]) -> str:
+    """Build context string from semantic search results for RAG.
+
+    Args:
+        search_results: List of search results with text, metadata, etc.
+
+    Returns:
+        str: Formatted context string with citations
+    """
+    if not search_results:
+        return ""
+
+    context_parts = []
+    for i, result in enumerate(search_results, 1):
+        text = result.get("text", "")
+        metadata = result.get("metadata", {})
+        asset_id = result.get("asset_id", "")
+        chunk_index = result.get("chunk_index", 0)
+
+        # Build citation info
+        citation_parts = [f"[{i}]"]
+        if metadata.get("source"):
+            citation_parts.append(f"Source: {metadata.get('source')}")
+        if asset_id:
+            citation_parts.append(f"Asset ID: {asset_id}")
+        citation_parts.append(f"Chunk: {chunk_index}")
+
+        context_parts.append(f"{' '.join(citation_parts)}\n{text}")
+
+    return "\n\n".join(context_parts)

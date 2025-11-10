@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import uvicorn
 
-from backend.routers import assets, auth, generation, projects
+from backend.routers import assistant, assets, auth, generation, projects
 
 app = FastAPI()
 
@@ -24,6 +24,7 @@ app.include_router(auth.router)
 app.include_router(projects.router)
 app.include_router(assets.router)
 app.include_router(generation.router)
+app.include_router(assistant.router)
 
 
 @app.get("/health")

@@ -240,6 +240,60 @@ All content generation endpoints require authentication via Bearer token in the 
   - Updates the generation record in the database
   - Preserves original metadata (model, tokens, etc.)
 
+### Assistant (RAG)
+
+All assistant endpoints require authentication via Bearer token in the Authorization header.
+
+- **POST** `/api/assistant/query` - Query the assistant with RAG (Retrieval-Augmented Generation)
+  - Request: `{ "project_id": "uuid", "question": "What are marketing strategies?", "top_k": 5, "include_citations": true }`
+    - `project_id` (required): UUID of the project to search within
+    - `question` (required): User's question (min 1 character)
+    - `top_k` (optional): Number of relevant chunks to retrieve (default: 5, min: 1, max: 20)
+    - `include_citations` (optional): Whether to include citations in response (default: true)
+  - Response: `200 OK` with assistant answer and citations:
+    ```json
+    {
+      "answer": "Based on the provided context, marketing strategies involve careful planning and execution...",
+      "citations": [
+        {
+          "index": 1,
+          "text": "This is a document about marketing strategies and campaign planning.",
+          "asset_id": "uuid",
+          "chunk_index": 0,
+          "score": 0.85,
+          "metadata": {
+            "source": "marketing_guide.pdf"
+          }
+        }
+      ],
+      "metadata": {
+        "model": "gpt-4o",
+        "provider": "openai",
+        "project_id": "uuid",
+        "chunks_retrieved": 5,
+        "has_context": true
+      }
+    }
+    ```
+  - Returns `404 Not Found` if project doesn't exist
+  - Returns `403 Forbidden` if user doesn't own the project
+  - Returns `500 Internal Server Error` if RAG pipeline fails
+  - Requires authentication
+  - **How it works**:
+    1. Uses semantic search to retrieve relevant document chunks from the project's ingested assets
+    2. Builds context from retrieved chunks with citation information
+    3. Constructs a prompt with the context and user's question
+    4. Generates an answer using an LLM (via Semantic Kernel)
+    5. Returns the answer with citations from source documents
+  - **Citations**: Each citation includes:
+    - `index`: Citation number (1-based)
+    - `text`: Excerpt from the source document
+    - `asset_id`: ID of the source asset
+    - `chunk_index`: Chunk index within the asset
+    - `score`: Similarity score (0.0-1.0, higher is more relevant)
+    - `metadata`: Additional metadata (e.g., source filename)
+  - **Note**: Only ingested assets are searchable. Use the ingestion endpoint (`POST /api/projects/{project_id}/assets/{asset_id}/ingest`) to process assets before querying.
+
 ### Health Check
 
 - **GET** `/health` - Application health check
@@ -518,9 +572,19 @@ Error messages appear as red alert boxes at the top of the relevant page.
 marketing-copilot/
 ├── backend/              # FastAPI backend
 │   ├── alembic/         # Database migrations
-│   ├── core/            # Core utilities (security, etc.)
+│   ├── core/            # Core utilities
+│   │   ├── generation.py      # Content generation orchestration
+│   │   ├── rag_pipeline.py    # RAG pipeline orchestration
+│   │   ├── semantic_search.py # Semantic search orchestration
+│   │   ├── ingestion.py       # Document ingestion pipeline
+│   │   ├── vector_store.py    # Vector store abstraction
+│   │   ├── embeddings.py     # Embedding generation
+│   │   └── sk_plugins/        # Semantic Kernel plugins
 │   ├── models/          # SQLAlchemy models
 │   ├── routers/         # API routes
+│   │   ├── assistant.py # RAG assistant endpoint
+│   │   ├── generation.py # Content generation endpoints
+│   │   └── ...
 │   ├── schemas/         # Pydantic schemas
 │   └── main.py          # Application entry point
 ├── frontend/            # Next.js frontend
@@ -535,6 +599,13 @@ marketing-copilot/
 - **Frontend**: Next.js, React, TypeScript, Tailwind CSS
 - **Database**: PostgreSQL 16
 - **Cache**: Redis 7
+- **AI/ML**: 
+  - Semantic Kernel (LLM orchestration)
+  - OpenAI API (GPT-4o)
+  - Sentence Transformers (embeddings)
+  - FAISS (vector search)
+- **Vector Store**: FAISS + SQLite for document embeddings
+- **RAG Pipeline**: Semantic search + LLM generation with citations
 - **Testing**: pytest, TestClient
 - **Linting**: Ruff
 
