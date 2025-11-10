@@ -107,7 +107,9 @@ def test_generate_content_with_all_optional_fields(
 
 
 @patch("backend.routers.generation._generate_content_background")
-def test_generate_content_with_assets(mock_background: MagicMock, test_client: TestClient, create_user, test_db_session):
+def test_generate_content_with_assets(
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
+):
     """Test content generation with project assets returns 202 Accepted."""
 
     user, token = create_user(

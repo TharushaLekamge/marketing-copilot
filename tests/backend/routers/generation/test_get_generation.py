@@ -8,7 +8,9 @@ from fastapi.testclient import TestClient
 
 
 @patch("backend.routers.generation._generate_content_background")
-def test_get_generation_record_success(mock_background: MagicMock, test_client: TestClient, create_user, test_db_session):
+def test_get_generation_record_success(
+    mock_background: MagicMock, test_client: TestClient, create_user, test_db_session
+):
     """Test successful retrieval of a completed generation record."""
     from backend.models.generation_record import GenerationRecord
     from datetime import datetime, timezone

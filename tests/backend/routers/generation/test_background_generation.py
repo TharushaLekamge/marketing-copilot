@@ -501,4 +501,3 @@ def test_generate_content_with_background_task_parameters(
     assert call_args[0][3] == "Test Project"  # project_name
     assert call_args[0][4] == "Test description"  # project_description
     assert call_args[0][5] == "Professional"  # brand_tone
-

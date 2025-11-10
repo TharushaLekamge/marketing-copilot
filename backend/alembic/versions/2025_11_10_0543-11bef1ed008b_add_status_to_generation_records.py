@@ -5,6 +5,7 @@ Revises: bac97f151d97
 Create Date: 2025-11-10 05:43:01.790784+00:00
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '11bef1ed008b'
-down_revision: Union[str, None] = 'bac97f151d97'
+revision: str = "11bef1ed008b"
+down_revision: Union[str, None] = "bac97f151d97"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -70,4 +71,3 @@ def downgrade() -> None:
 
     # Make response non-nullable again
     op.alter_column("generation_records", "response", nullable=False)
-
