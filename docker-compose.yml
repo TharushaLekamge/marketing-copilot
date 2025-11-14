@@ -93,11 +93,11 @@ services:
       - /app/node_modules
       - /app/.next
     ports:
-      - "3000:3000"
+      - "4000:3000"
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm install && npm run dev -- -H 0.0.0.0"
     networks:
       - marketing_copilot_network
     restart: unless-stopped

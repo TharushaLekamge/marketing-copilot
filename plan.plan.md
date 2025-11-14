@@ -12,14 +12,18 @@ Build a production-ready marketing copilot application demonstrating FastAPI, Ne
 
 ## Progress Summary
 
-**Completed Steps: 11 out of 28 (39%)**
+**Completed Steps: 15 out of 28 (54%)**
 
 - ✅ Steps 1-9: Complete (Docker setup through Vector Store)
 - ✅ Step 10: Complete (Ingestion Pipeline - core logic, endpoint, and tests)
 - ✅ Step 11: Complete (LLM Provider Abstraction - abstract class and Ollama implementation)
-- ⏳ Steps 12-28: Pending
+- ✅ Step 12: Complete (Content Generation - Core Logic using Semantic Kernel)
+- ✅ Step 13: Complete (Content Generation - API endpoints and background tasks)
+- ✅ Step 14: Complete (Semantic Search with query embedding, k-NN search, and re-ranking)
+- ✅ Step 15: Complete (RAG Pipeline with orchestration, citations, and assistant endpoint)
+- ⏳ Steps 16-28: Pending
 
-**Current Status:** Step 11 (LLM Provider Abstraction) is complete. The abstract LLMProvider interface and OllamaProvider implementation are done with comprehensive tests. Next step is Step 12: Content Generation - Core Logic.
+**Current Status:** Step 15 (RAG Pipeline) is complete. The RAG orchestration module, citation extraction, and assistant endpoint (POST /api/assistant/query) are implemented with comprehensive tests. Next step is Step 16: Frontend Foundation.
 
   
 
@@ -274,59 +278,51 @@ Each step should be:
 
   
 
-### Step 12: Content Generation - Core Logic
+### Step 12: Content Generation - Core Logic ✅ COMPLETE
 
   
 
-- Generation orchestration module
-
-- Variant generation logic (short-form, long-form, CTA)
-
-- Prompt construction with project context
-
-  
-
-### Step 13: Content Generation - API
+- ✅ Generation orchestration module (ContentGenerationOrchestrator using Semantic Kernel)
+- ✅ Variant generation logic (short-form, long-form, CTA)
+- ✅ Prompt construction with project context
+- ✅ Comprehensive tests (tests/backend/core/test_generation.py)
 
   
 
-- Generation endpoint (POST /api/generate)
-
-- GenerationRecord model for tracking
-
-- Response schemas with provenance metadata
-
-- Update endpoint (PATCH /api/generate/update) - Fully implement update_generated_content method to persist edited content to database
-
-- Fetch previous generations endpoint (GET /api/generate?project_id={id}) - Method to retrieve generation history for a project
-
-- Remove settings.serve_actual_generation check - Once frontend is complete, remove the conditional check and always use actual generation. Also remove the corresponding mocks in tests (tests/backend/routers/test_generation.py) that mock settings.serve_actual_generation
-
-- ⏳ Refactor POST /api/generate endpoint to return accepted response (202 Accepted) immediately and offload the generation part to an async background task
+### Step 13: Content Generation - API ✅ COMPLETE
 
   
 
-### Step 14: Semantic Search
+- ✅ Generation endpoint (POST /api/generate) - Returns 202 Accepted with background task
+- ✅ GenerationRecord model for tracking
+- ✅ Response schemas with provenance metadata
+- ✅ Update endpoint (PATCH /api/generate/{generation_id}) - Fully implemented to persist edited content to database
+- ✅ Fetch previous generations endpoint (GET /api/projects/{project_id}/generation-records) - Retrieves generation history for a project
+- ✅ Background task refactoring - POST /api/generate returns 202 Accepted immediately and offloads generation to async background task
+- ✅ Get single generation endpoint (GET /api/generate/{generation_id})
+- ⏳ Remove settings.serve_actual_generation check - Setting exists but is not used, so nothing to remove
 
   
 
-- Query embedding generation
-
-- k-NN search implementation
-
-- Result re-ranking and metadata filtering
+### Step 14: Semantic Search ✅ COMPLETE
 
   
 
-### Step 15: RAG Pipeline
+- ✅ Query embedding generation (EmbeddingGenerator.generate_embedding)
+- ✅ k-NN search implementation (FAISS-based vector search in FAISSSQLiteVectorStore)
+- ✅ Result re-ranking and metadata filtering (keyword boost, length normalization, metadata boost)
+- ✅ Comprehensive tests (tests/backend/core/test_semantic_search.py)
 
   
 
-- RAG orchestration module (query → retrieve → prompt → LLM → response)
+### Step 15: RAG Pipeline ✅ COMPLETE
 
-- Citation extraction and formatting
+  
 
-- Assistant endpoint (POST /api/assistant/query)
+- ✅ RAG orchestration module (RAGOrchestrator with query → retrieve → prompt → LLM → response flow)
+- ✅ Citation extraction and formatting (extracts citations from search results with metadata)
+- ✅ Assistant endpoint (POST /api/assistant/query) - Fully implemented with authentication and error handling
+- ✅ Comprehensive tests (tests/backend/core/test_rag_pipeline.py and tests/backend/routers/assistant/test_assistant.py)
 
   
 
