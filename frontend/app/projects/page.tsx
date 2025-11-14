@@ -72,6 +72,14 @@ export default function ProjectsPage() {
             </h1>
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">{user.email}</span>
+              <a
+                href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/docs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                API Docs
+              </a>
               <button
                 onClick={logout}
                 className="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
