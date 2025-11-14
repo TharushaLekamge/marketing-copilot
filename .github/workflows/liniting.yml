@@ -5,8 +5,30 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Detect changes
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'tests/backend/**'
+            frontend:
+              - 'frontend/**'
+
   lint-backend:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     
     steps:
       - name: Checkout code
@@ -32,6 +54,8 @@ jobs:
 
   lint-frontend:
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     
     steps:
       - name: Checkout code
@@ -53,4 +77,3 @@ jobs:
         working-directory: frontend
         run: |
           npm run lint
-
