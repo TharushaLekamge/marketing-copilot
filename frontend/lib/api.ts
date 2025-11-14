@@ -50,9 +50,16 @@ export interface Asset {
   filename: string;
   content_type: string;
   ingested: boolean;
+  ingesting?: boolean;
   asset_metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface IngestionResponse {
+  message: string;
+  asset_id: string;
+  ingesting: boolean;
 }
 
 export interface GenerationRequest {
@@ -353,6 +360,15 @@ class ApiClient {
     }
 
     return response.blob();
+  }
+
+  async ingestAsset(projectId: string, assetId: string): Promise<IngestionResponse> {
+    return this.request<IngestionResponse>(
+      `/api/projects/${projectId}/assets/${assetId}/ingest`,
+      {
+        method: "POST",
+      }
+    );
   }
 
   // Generation methods

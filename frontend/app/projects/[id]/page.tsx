@@ -18,8 +18,10 @@ export default function ProjectDetailPage({
   const [generationRecords, setGenerationRecords] = useState<GenerationResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [ingesting, setIngesting] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const pollingIntervalsRef = React.useRef<Record<string, NodeJS.Timeout>>({});
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -66,6 +68,17 @@ export default function ProjectDetailPage({
     }
   }, [user, id, loadProject, loadAssets, loadGenerationRecords]);
 
+  // Cleanup polling intervals on unmount
+  useEffect(() => {
+    return () => {
+      // Access current ref value in cleanup to get all intervals
+      const intervals = pollingIntervalsRef.current;
+      Object.values(intervals).forEach((interval) => {
+        clearInterval(interval);
+      });
+    };
+  }, []);
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -111,6 +124,53 @@ export default function ProjectDetailPage({
       document.body.removeChild(a);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to download file");
+    }
+  };
+
+  const handleIngestAsset = async (assetId: string) => {
+    try {
+      setIngesting((prev) => ({ ...prev, [assetId]: true }));
+      setError(null);
+      await apiClient.ingestAsset(id, assetId);
+      // Reload assets to get updated status
+      await loadAssets();
+      // Start polling to check ingestion status
+      let pollCount = 0;
+      const maxPolls = 150; // 5 minutes at 2 second intervals
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+        const updatedAssets = await apiClient.getAssets(id);
+        setAssets(updatedAssets);
+        
+        const updatedAsset = updatedAssets.find((a) => a.id === assetId);
+        if (updatedAsset && !updatedAsset.ingesting && updatedAsset.ingested) {
+          clearInterval(pollInterval);
+          delete pollingIntervalsRef.current[assetId];
+          setIngesting((prev) => {
+            const newState = { ...prev };
+            delete newState[assetId];
+            return newState;
+          });
+        }
+        // Stop polling after max attempts
+        if (pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          delete pollingIntervalsRef.current[assetId];
+          setIngesting((prev) => {
+            const newState = { ...prev };
+            delete newState[assetId];
+            return newState;
+          });
+        }
+      }, 2000); // Poll every 2 seconds
+      pollingIntervalsRef.current[assetId] = pollInterval;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start ingestion");
+      setIngesting((prev) => {
+        const newState = { ...prev };
+        delete newState[assetId];
+        return newState;
+      });
     }
   };
 
@@ -282,10 +342,16 @@ export default function ProjectDetailPage({
                           className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
                             asset.ingested
                               ? "bg-green-100 text-green-800"
+                              : asset.ingesting || ingesting[asset.id]
+                              ? "bg-blue-100 text-blue-800"
                               : "bg-yellow-100 text-yellow-800"
                           }`}
                         >
-                          {asset.ingested ? "Ingested" : "Pending"}
+                          {asset.ingested
+                            ? "Ingested"
+                            : asset.ingesting || ingesting[asset.id]
+                            ? "Ingesting..."
+                            : "Pending"}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
@@ -293,6 +359,13 @@ export default function ProjectDetailPage({
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleIngestAsset(asset.id)}
+                            disabled={asset.ingested || asset.ingesting || ingesting[asset.id]}
+                            className="text-green-600 hover:text-green-900 disabled:text-gray-400 disabled:cursor-not-allowed"
+                          >
+                            Ingest
+                          </button>
                           <button
                             onClick={() => handleDownloadAsset(asset)}
                             className="text-blue-600 hover:text-blue-900"
